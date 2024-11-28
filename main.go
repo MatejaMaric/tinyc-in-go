@@ -19,10 +19,7 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"io"
-	"strconv"
 	"unicode"
 )
 
@@ -102,7 +99,7 @@ func (s Symbol) String() string {
 	return fmt.Sprintf("%s(%s)", s.Type, s.Value)
 }
 
-func isReservedWord(str string) (*Symbol, bool) {
+func extractReservedWord(str string) (*Symbol, bool) {
 	reservedWords := map[string]SymbolType{
 		"do":    DO_SYM,
 		"else":  ELSE_SYM,
@@ -117,28 +114,11 @@ func isReservedWord(str string) (*Symbol, bool) {
 }
 
 func lex(text string) ([]Symbol, error) {
-	runeIndex := 0
-	runeList := []rune(text)
-
-	next_char := func() (rune, error) {
-		if runeIndex > len(runeList)-1 {
-			return 0, io.EOF
-		}
-		char := runeList[runeIndex]
-		runeIndex++
-		return char, nil
-	}
-
-	peek_char := func() (rune, error) {
-		if runeIndex > len(runeList)-1 {
-			return 0, io.EOF
-		}
-		return runeList[runeIndex], nil
-	}
-
 	symbols := []Symbol{}
+	consume, peek := strToRuneQueue(text)
+
 	for {
-		sym, err := next_symbol(next_char, peek_char)
+		sym, err := nextSymbol(consume, peek)
 		if err != nil {
 			return nil, err
 		}
@@ -154,72 +134,33 @@ func lex(text string) ([]Symbol, error) {
 	return symbols, nil
 }
 
-func next_symbol(next_char, peek_char func() (rune, error)) (*Symbol, error) {
-	c, err := next_char()
-	if errors.Is(err, io.EOF) {
+func strToRuneQueue(str string) (consume, peek func() (rune, bool)) {
+	runeIndex := 0
+	runeList := []rune(str)
+
+	consume = func() (rune, bool) {
+		if runeIndex > len(runeList)-1 {
+			return 0, false
+		}
+		char := runeList[runeIndex]
+		runeIndex++
+		return char, true
+	}
+
+	peek = func() (rune, bool) {
+		if runeIndex > len(runeList)-1 {
+			return 0, false
+		}
+		return runeList[runeIndex], true
+	}
+
+	return
+}
+
+func nextSymbol(consume, peek func() (rune, bool)) (*Symbol, error) {
+	c, ok := consume()
+	if !ok {
 		return &Symbol{Type: END, Value: ""}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	handleInteger := func() (*Symbol, error) {
-		val := 0
-		for unicode.IsDigit(c) {
-			val = val*10 + int(c-'0')
-
-			c, err = peek_char()
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			if err != nil {
-				return nil, err
-			}
-
-			if unicode.IsDigit(c) {
-				c, err = next_char()
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-		return &Symbol{Type: INTEGER, Value: strconv.Itoa(val)}, nil
-	}
-
-	handleLetters := func() (*Symbol, error) {
-		runeList := []rune{}
-		for unicode.IsLetter(c) {
-			runeList = append(runeList, c)
-
-			c, err = peek_char()
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			if err != nil {
-				return nil, err
-			}
-
-			if unicode.IsLetter(c) {
-				c, err = next_char()
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-		if len(runeList) == 1 {
-			return &Symbol{Type: VARIABLE, Value: string(runeList)}, nil
-		}
-		sym, ok := isReservedWord(string(runeList))
-		if !ok {
-			return nil, fmt.Errorf("Unknown reserved word: %s", string(runeList))
-		}
-		return sym, nil
 	}
 
 	switch c {
@@ -247,13 +188,64 @@ func next_symbol(next_char, peek_char func() (rune, error)) (*Symbol, error) {
 		return &Symbol{Type: EQUAL, Value: "="}, nil
 	default:
 		if unicode.IsDigit(c) {
-			return handleInteger()
-		} else if unicode.IsLetter(c) {
-			return handleLetters()
+			return handleInteger(c, consume, peek)
+		}
+		if unicode.IsLetter(c) {
+			return handleLetters(c, consume, peek)
 		}
 	}
 
-	return nil, errors.New("Unknown symbol")
+	return nil, fmt.Errorf("Unknown symbol: %v", c)
+}
+
+func handleInteger(r rune, consume, peek func() (rune, bool)) (*Symbol, error) {
+	currentRune := r
+	runeList := make([]rune, 0)
+
+	for unicode.IsDigit(currentRune) {
+		runeList = append(runeList, currentRune)
+
+		peekedRune, ok := peek()
+		if !ok || !unicode.IsDigit(peekedRune) {
+			break
+		}
+
+		currentRune, ok = consume()
+		if !ok {
+			break
+		}
+	}
+
+	return &Symbol{Type: INTEGER, Value: string(runeList)}, nil
+}
+
+func handleLetters(r rune, consume, peek func() (rune, bool)) (*Symbol, error) {
+	currentRune := r
+	runeList := make([]rune, 0, 5)
+
+	for unicode.IsLetter(currentRune) {
+		runeList = append(runeList, currentRune)
+
+		peekedRune, ok := peek()
+		if !ok || !unicode.IsLetter(peekedRune) {
+			break
+		}
+
+		currentRune, ok = consume()
+		if !ok {
+			break
+		}
+	}
+
+	if len(runeList) == 1 {
+		return &Symbol{Type: VARIABLE, Value: string(runeList)}, nil
+	}
+
+	sym, ok := extractReservedWord(string(runeList))
+	if !ok {
+		return nil, fmt.Errorf("Unknown reserved word: %s", string(runeList))
+	}
+	return sym, nil
 }
 
 func main() {
