@@ -20,6 +20,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"unicode"
 )
 
@@ -47,6 +48,10 @@ import (
  *
  * Examples of the compiler invocations can be found in the `main_test.go` file.
  */
+
+/*---------------------------------------------------------------------------*/
+/* Lexer                                                                     */
+/*---------------------------------------------------------------------------*/
 
 type SymbolType int
 
@@ -247,6 +252,163 @@ func handleLetters(r rune, consume, peek func() (rune, bool)) (*Symbol, error) {
 	}
 	return sym, nil
 }
+
+/*---------------------------------------------------------------------------*/
+/* Parser                                                                    */
+/*---------------------------------------------------------------------------*/
+
+type NodeType int
+
+const (
+	VAR_NODE NodeType = iota
+	CONST
+	ADD
+	SUB
+	LT
+	SET
+	IF
+	IF_ELSE
+	WHILE
+	DO
+	EMPTY
+	SEQ
+	EXPR
+	PROG
+)
+
+func (nt NodeType) String() string {
+	return [...]string{
+		"VAR_NODE",
+		"CONST",
+		"ADD",
+		"SUB",
+		"LT",
+		"SET",
+		"IF",
+		"IF_ELSE",
+		"WHILE",
+		"DO",
+		"EMPTY",
+		"SEQ",
+		"EXPR",
+		"PROG",
+	}[nt]
+}
+
+type Node struct {
+	Type       NodeType
+	Value      int
+	O1, O2, O3 *Node
+}
+
+func (n *Node) String() string {
+	return fmt.Sprintf("\n(%s(%d)%s %s %s)", n.Type, n.Value, n.O1, n.O2, n.O3)
+}
+
+func NewNode(ntype NodeType) *Node {
+	return &Node{Type: ntype}
+}
+
+func NewNodeV(ntype NodeType, value int) *Node {
+	return &Node{ntype, value, nil, nil, nil}
+}
+
+func NewNode1(ntype NodeType, o1 *Node) *Node {
+	return &Node{ntype, 0, o1, nil, nil}
+}
+
+func NewNode2(ntype NodeType, o1, o2 *Node) *Node {
+	return &Node{ntype, 0, o1, o2, nil}
+}
+
+func NewNode3(ntype NodeType, o1, o2, o3 *Node) *Node {
+	return &Node{ntype, 0, o1, o2, o3}
+}
+
+func symbolQueue(symbols []Symbol) (consume, peek func() (Symbol, bool)) {
+	index := 0
+
+	consume = func() (Symbol, bool) {
+		if index > len(symbols)-1 {
+			return Symbol{END, ""}, false
+		}
+		char := symbols[index]
+		index++
+		return char, true
+	}
+
+	peek = func() (Symbol, bool) {
+		if index > len(symbols)-1 {
+			return Symbol{END, ""}, false
+		}
+		return symbols[index], true
+	}
+
+	return
+}
+
+func parse(symbols []Symbol) (*Node, error) {
+	consume, peek := symbolQueue(symbols)
+
+	astRoot := NewNode(PROG)
+	// astRoot.O1 = statement(consume, peek)
+	astRoot.O1 = sum(consume, peek)
+
+	if sym, _ := peek(); sym.Type != END {
+		return nil, fmt.Errorf("Expected END, got %s", sym)
+	}
+	return astRoot, nil
+}
+
+// <term> ::= <id> | <int> | <paren_expr>
+func term(consume, peek func() (Symbol, bool)) *Node {
+	var n *Node
+	sym, _ := peek()
+
+	if sym.Type == VARIABLE {
+		n = NewNode(VAR_NODE)
+		n.Value = int(sym.Value[0] - 'a')
+		consume()
+	} else if sym.Type == INTEGER {
+		val, _ := strconv.Atoi(sym.Value)
+		n = NewNodeV(CONST, val)
+		consume()
+	} else {
+		// n = paren_expr(consume, peek)
+	}
+
+	return n
+}
+
+// <sum> ::= <term> | <sum> "+" <term> | <sum> "-" <term>
+func sum(consume, peek func() (Symbol, bool)) *Node {
+	a := term(consume, peek)
+
+	sym, ok := peek()
+	if !ok {
+		return a
+	}
+
+	var n *Node = a
+	for sym.Type == PLUS || sym.Type == MINUS {
+
+		if sym.Type == PLUS {
+			n = NewNode(ADD)
+		} else {
+			n = NewNode(SUB)
+		}
+
+		n.O1 = a
+		sym, _ = consume()
+		n.O2 = term(consume, peek)
+	}
+
+	return n
+}
+
+/*---------------------------------------------------------------------------*/
+/* Main program                                                              */
+/*---------------------------------------------------------------------------*/
 
 func main() {
 }

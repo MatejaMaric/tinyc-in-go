@@ -20,6 +20,7 @@ package main
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"testing"
 )
@@ -205,6 +206,68 @@ func TestLex(t *testing.T) {
 			}
 			if !slices.Equal(res, tc.expected) {
 				t.Errorf("\nExpected:\t%v\nGot:\t\t%v", tc.expected, res)
+			}
+		}
+	}
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("Example %d", i+1), testFunc(tc))
+	}
+}
+
+func TestParse(t *testing.T) {
+	type TestCase struct {
+		input    []Symbol
+		expected *Node
+	}
+
+	testCases := []TestCase{
+		{
+			input: []Symbol{
+				{Type: VARIABLE, Value: "b"},
+				{Type: PLUS, Value: "+"},
+				{Type: INTEGER, Value: "2"},
+				{Type: END, Value: ""},
+			},
+			expected: NewNode3(PROG,
+				NewNode3(ADD,
+					NewNodeV(VAR_NODE, 1),
+					NewNodeV(CONST, 2),
+					nil,
+				),
+				nil,
+				nil,
+			),
+		},
+		{
+			input: []Symbol{
+				{Type: VARIABLE, Value: "b"},
+				{Type: MINUS, Value: "-"},
+				{Type: INTEGER, Value: "2"},
+				{Type: PLUS, Value: "+"},
+				{Type: INTEGER, Value: "3"},
+				{Type: END, Value: ""},
+			},
+			expected: NewNode1(PROG,
+				NewNode2(ADD,
+					NewNode2(SUB,
+						NewNodeV(VAR_NODE, 1),
+						NewNodeV(CONST, 2),
+					),
+					NewNodeV(CONST, 3),
+				),
+			),
+		},
+	}
+
+	testFunc := func(tc TestCase) func(*testing.T) {
+		return func(t *testing.T) {
+			root, err := parse(tc.input)
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(root, tc.expected) {
+				t.Errorf("\nExpected:\t%v\nGot:\t\t%v", tc.expected, root)
 			}
 		}
 	}
