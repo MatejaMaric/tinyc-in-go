@@ -382,28 +382,27 @@ func term(consume, peek func() (Symbol, bool)) *Node {
 
 // <sum> ::= <term> | <sum> "+" <term> | <sum> "-" <term>
 func sum(consume, peek func() (Symbol, bool)) *Node {
-	a := term(consume, peek)
+	var t, x *Node
+	x = term(consume, peek)
 
-	sym, ok := peek()
-	if !ok {
-		return a
-	}
-
-	var n *Node = a
+	sym, _ := peek()
 	for sym.Type == PLUS || sym.Type == MINUS {
+		t = x
 
 		if sym.Type == PLUS {
-			n = NewNode(ADD)
+			x = NewNode(ADD)
 		} else {
-			n = NewNode(SUB)
+			x = NewNode(SUB)
 		}
 
-		n.O1 = a
-		sym, _ = consume()
-		n.O2 = term(consume, peek)
+		consume()
+		x.O1 = t
+		x.O2 = term(consume, peek)
+
+		sym, _ = peek()
 	}
 
-	return n
+	return x
 }
 
 /*---------------------------------------------------------------------------*/
