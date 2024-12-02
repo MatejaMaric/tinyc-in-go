@@ -343,79 +343,66 @@ func consume(s State) (Symbol, State) {
 	return sym, s
 }
 
-func symbolQueue(symbols []Symbol) (consume, peek func() (Symbol, bool)) {
-	index := 0
-
-	consume = func() (Symbol, bool) {
-		if index > len(symbols)-1 {
-			return Symbol{END, ""}, false
-		}
-		char := symbols[index]
-		index++
-		return char, true
-	}
-
-	peek = func() (Symbol, bool) {
-		if index > len(symbols)-1 {
-			return Symbol{END, ""}, false
-		}
-		return symbols[index], true
-	}
-
-	return
-}
+type Parser func(State) (*Node, State, error)
 
 func parse(symbols []Symbol) (*Node, error) {
-	consume, peek := symbolQueue(symbols)
+	state0 := State{Data: symbols, Offset: 0}
 
-	astRoot := NewNode(PROG)
-	// astRoot.O1 = statement(consume, peek)
-	astRoot.O1 = sum(consume, peek)
+	statement, state1, err := sum(state0)
+	if err != nil {
+		return nil, err
+	}
+	astRoot := NewNode1(PROG, statement)
 
-	if sym, _ := peek(); sym.Type != END {
+	if sym := peek(state1); sym.Type != END {
 		return nil, fmt.Errorf("Expected END, got %s", sym)
 	}
 	return astRoot, nil
 }
 
 // <term> ::= <id> | <int> | <paren_expr>
-func term(consume, peek func() (Symbol, bool)) *Node {
-	var n *Node
-	sym, _ := peek()
+func term(state0 State) (*Node, State, error) {
+	sym, state1 := consume(state0)
 
 	if sym.Type == VARIABLE {
 		val := int(sym.Value[0] - 'a')
-		n = NewNodeV(VAR_NODE, val)
-		consume()
-	} else if sym.Type == INTEGER {
-		val, _ := strconv.Atoi(sym.Value)
-		n = NewNodeV(CONST, val)
-		consume()
-	} else {
-		// n = paren_expr(consume, peek)
+		return NewNodeV(VAR_NODE, val), state1, nil
 	}
 
-	return n
+	if sym.Type == INTEGER {
+		val, _ := strconv.Atoi(sym.Value)
+		return NewNodeV(CONST, val), state1, nil
+	}
+
+	// n = paren_expr(consume, peek) // Unimplemented
+
+	return nil, state0, fmt.Errorf("Expected VARIABLE or INTEGER, got %s", sym)
 }
 
 // <sum> ::= <term> | <sum> "+" <term> | <sum> "-" <term>
 // After eliminating left recursion
 // <sum> ::= <term> <sum'>
 // <sum'> ::= "+" <term> <sum'> | "-" <term> <sum'> | empty
-func sum(consume, peek func() (Symbol, bool)) *Node {
-	t := term(consume, peek)
-	s := sumPrime(consume, peek, t)
-	return s
-}
-
-func sumPrime(consume, peek func() (Symbol, bool), prev *Node) *Node {
-	sym, _ := peek()
-	if sym.Type != PLUS && sym.Type != MINUS {
-		return prev
+func sum(state0 State) (*Node, State, error) {
+	t, state1, err := term(state0)
+	if err != nil {
+		return nil, state1, err
 	}
 
-	consume()
-	t := term(consume, peek)
+	return sumPrime(state1, t)
+}
+
+func sumPrime(state0 State, prev *Node) (*Node, State, error) {
+	sym, state1 := consume(state0)
+
+	if sym.Type != PLUS && sym.Type != MINUS {
+		return prev, state0, nil
+	}
+
+	t, state2, err := term(state1)
+	if err != nil {
+		return nil, state2, err
+	}
 
 	var n *Node
 	if sym.Type == PLUS {
@@ -424,7 +411,7 @@ func sumPrime(consume, peek func() (Symbol, bool), prev *Node) *Node {
 		n = NewNode2(SUB, prev, t)
 	}
 
-	return sumPrime(consume, peek, n)
+	return sumPrime(state2, n)
 }
 
 /*---------------------------------------------------------------------------*/
