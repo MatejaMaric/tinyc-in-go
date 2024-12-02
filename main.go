@@ -325,6 +325,24 @@ func NewNode3(ntype NodeType, o1, o2, o3 *Node) *Node {
 	return &Node{ntype, 0, o1, o2, o3}
 }
 
+type State struct {
+	Data   []Symbol
+	Offset int
+}
+
+func peek(s State) Symbol {
+	if s.Offset >= len(s.Data) {
+		return Symbol{END, ""}
+	}
+	return s.Data[s.Offset]
+}
+
+func consume(s State) (Symbol, State) {
+	sym := peek(s)
+	s.Offset++
+	return sym, s
+}
+
 func symbolQueue(symbols []Symbol) (consume, peek func() (Symbol, bool)) {
 	index := 0
 
@@ -352,7 +370,7 @@ func parse(symbols []Symbol) (*Node, error) {
 
 	astRoot := NewNode(PROG)
 	// astRoot.O1 = statement(consume, peek)
-	astRoot.O1 = sum_recursive(consume, peek)
+	astRoot.O1 = sum(consume, peek)
 
 	if sym, _ := peek(); sym.Type != END {
 		return nil, fmt.Errorf("Expected END, got %s", sym)
@@ -381,7 +399,7 @@ func term(consume, peek func() (Symbol, bool)) *Node {
 }
 
 // <sum> ::= <term> | <sum> "+" <term> | <sum> "-" <term>
-func sum(consume, peek func() (Symbol, bool)) *Node {
+func sumOriginal(consume, peek func() (Symbol, bool)) *Node {
 	var t, x *Node
 	x = term(consume, peek)
 
@@ -405,42 +423,33 @@ func sum(consume, peek func() (Symbol, bool)) *Node {
 	return x
 }
 
-func sum_rec(consume, peek func() (Symbol, bool)) *Node {
+// <sum> ::= <term> | <sum> "+" <term> | <sum> "-" <term>
+// After eliminating left recursion
+// <sum> ::= <term> <sum'>
+// <sum'> ::= "+" <term> <sum'> | "-" <term> <sum'> | empty
+func sum(consume, peek func() (Symbol, bool)) *Node {
+	t := term(consume, peek)
+	s := sumPrime(consume, peek, t)
+	return s
+}
+
+func sumPrime(consume, peek func() (Symbol, bool), prev *Node) *Node {
+	sym, _ := peek()
+	if sym.Type != PLUS && sym.Type != MINUS {
+		return prev
+	}
+
+	consume()
 	t := term(consume, peek)
 
-	sym, _ := peek()
-	if sym.Type != PLUS && sym.Type != MINUS {
-		return t
-	}
-	consume()
-
+	var n *Node
 	if sym.Type == PLUS {
-		return NewNode2(ADD, t, sum_rec(consume, peek))
-	}
-
-	return NewNode2(SUB, t, sum_rec(consume, peek))
-}
-
-func sum_recursive(consume, peek func() (Symbol, bool)) *Node {
-	x := term(consume, peek)
-	return sum_recursive2(consume, peek, x)
-}
-
-func sum_recursive2(consume, peek func() (Symbol, bool), x *Node) *Node {
-	sym, _ := peek()
-	if sym.Type != PLUS && sym.Type != MINUS {
-		return x
-	}
-	t := x
-	if sym.Type == PLUS {
-		x = NewNode(ADD)
+		n = NewNode2(ADD, prev, t)
 	} else {
-		x = NewNode(SUB)
+		n = NewNode2(SUB, prev, t)
 	}
-	consume()
-	x.O1 = t
-	x.O2 = term(consume, peek)
-	return sum_recursive2(consume, peek, x)
+
+	return sumPrime(consume, peek, n)
 }
 
 /*---------------------------------------------------------------------------*/
