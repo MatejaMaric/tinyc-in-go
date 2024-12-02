@@ -346,62 +346,67 @@ func consume(s State) (Symbol, State) {
 type Parser func(State) (*Node, State, error)
 
 func parse(symbols []Symbol) (*Node, error) {
-	state0 := State{Data: symbols, Offset: 0}
+	state := State{Data: symbols, Offset: 0}
 
-	statement, state1, err := sum(state0)
+	statement, state, err := sum(state)
 	if err != nil {
 		return nil, err
 	}
+
 	astRoot := NewNode1(PROG, statement)
 
-	if sym := peek(state1); sym.Type != END {
+	if sym := peek(state); sym.Type != END {
 		return nil, fmt.Errorf("Expected END, got %s", sym)
 	}
+
 	return astRoot, nil
 }
 
 // <term> ::= <id> | <int> | <paren_expr>
-func term(state0 State) (*Node, State, error) {
-	sym, state1 := consume(state0)
+func term(state State) (*Node, State, error) {
+	sym := peek(state)
 
 	if sym.Type == VARIABLE {
+		sym, state = consume(state)
 		val := int(sym.Value[0] - 'a')
-		return NewNodeV(VAR_NODE, val), state1, nil
+		return NewNodeV(VAR_NODE, val), state, nil
 	}
 
 	if sym.Type == INTEGER {
+		sym, state = consume(state)
 		val, _ := strconv.Atoi(sym.Value)
-		return NewNodeV(CONST, val), state1, nil
+		return NewNodeV(CONST, val), state, nil
 	}
 
 	// n = paren_expr(consume, peek) // Unimplemented
 
-	return nil, state0, fmt.Errorf("Expected VARIABLE or INTEGER, got %s", sym)
+	return nil, state, fmt.Errorf("Expected VARIABLE or INTEGER, got %s", sym)
 }
 
 // <sum> ::= <term> | <sum> "+" <term> | <sum> "-" <term>
 // After eliminating left recursion
 // <sum> ::= <term> <sum'>
 // <sum'> ::= "+" <term> <sum'> | "-" <term> <sum'> | empty
-func sum(state0 State) (*Node, State, error) {
-	t, state1, err := term(state0)
+func sum(state State) (*Node, State, error) {
+	t, state, err := term(state)
 	if err != nil {
-		return nil, state1, err
+		return nil, state, err
 	}
 
-	return sumPrime(state1, t)
+	return sumPrime(state, t)
 }
 
-func sumPrime(state0 State, prev *Node) (*Node, State, error) {
-	sym, state1 := consume(state0)
+func sumPrime(state State, prev *Node) (*Node, State, error) {
+	sym := peek(state)
 
 	if sym.Type != PLUS && sym.Type != MINUS {
-		return prev, state0, nil
+		return prev, state, nil
 	}
+	sym, state = consume(state)
 
-	t, state2, err := term(state1)
+	t, state, err := term(state)
 	if err != nil {
-		return nil, state2, err
+		return nil, state, err
 	}
 
 	var n *Node
@@ -411,7 +416,7 @@ func sumPrime(state0 State, prev *Node) (*Node, State, error) {
 		n = NewNode2(SUB, prev, t)
 	}
 
-	return sumPrime(state2, n)
+	return sumPrime(state, n)
 }
 
 /*---------------------------------------------------------------------------*/
