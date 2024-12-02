@@ -345,21 +345,19 @@ func consume(s State) (Symbol, State) {
 
 type Parser func(State) (*Node, State, error)
 
-func parse(symbols []Symbol) (*Node, error) {
-	state := State{Data: symbols, Offset: 0}
-
+func parse(state State) (*Node, State, error) {
 	statement, state, err := sum(state)
 	if err != nil {
-		return nil, err
+		return nil, state, err
 	}
 
 	astRoot := NewNode1(PROG, statement)
 
 	if sym := peek(state); sym.Type != END {
-		return nil, fmt.Errorf("Expected END, got %s", sym)
+		return astRoot, state, fmt.Errorf("Expected END, got %s", sym)
 	}
 
-	return astRoot, nil
+	return astRoot, state, nil
 }
 
 // <term> ::= <id> | <int> | <paren_expr>

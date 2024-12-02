@@ -215,21 +215,35 @@ func TestLex(t *testing.T) {
 	}
 }
 
-func TestParse(t *testing.T) {
-	type TestCase struct {
-		input    []Symbol
-		expected *Node
-	}
+type ParserTestCase struct {
+	input    []Symbol
+	expected *Node
+}
 
-	testCases := []TestCase{
+func ParserTestFunc(tc ParserTestCase, parser Parser) func(*testing.T) {
+	return func(t *testing.T) {
+		state := State{Data: tc.input, Offset: 0}
+		root, state, err := parser(state)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if sym := peek(state); sym.Type != END {
+			t.Errorf("Expected END, got %s", sym)
+		}
+		if !reflect.DeepEqual(root, tc.expected) {
+			t.Errorf("\nExpected:\t%v\nGot:\t\t%v", tc.expected, root)
+		}
+	}
+}
+
+func TestSum(t *testing.T) {
+	testCases := []ParserTestCase{
 		{
 			input: []Symbol{
 				{VARIABLE, "b"},
 				{END, ""},
 			},
-			expected: NewNode1(PROG,
-				NewNodeV(VAR_NODE, 1),
-			),
+			expected: NewNodeV(VAR_NODE, 1),
 		},
 		{
 			input: []Symbol{
@@ -238,11 +252,9 @@ func TestParse(t *testing.T) {
 				{INTEGER, "2"},
 				{END, ""},
 			},
-			expected: NewNode1(PROG,
-				NewNode2(ADD,
-					NewNodeV(VAR_NODE, 1),
-					NewNodeV(CONST, 2),
-				),
+			expected: NewNode2(ADD,
+				NewNodeV(VAR_NODE, 1),
+				NewNodeV(CONST, 2),
 			),
 		},
 		{
@@ -254,7 +266,26 @@ func TestParse(t *testing.T) {
 				{INTEGER, "3"},
 				{END, ""},
 			},
-			expected: NewNode1(PROG,
+			expected: NewNode2(ADD,
+				NewNode2(SUB,
+					NewNodeV(VAR_NODE, 1),
+					NewNodeV(CONST, 2),
+				),
+				NewNodeV(CONST, 3),
+			),
+		},
+		{
+			input: []Symbol{
+				{VARIABLE, "b"},
+				{MINUS, "-"},
+				{INTEGER, "2"},
+				{PLUS, "+"},
+				{INTEGER, "3"},
+				{MINUS, "-"},
+				{INTEGER, "2"},
+				{END, ""},
+			},
+			expected: NewNode2(SUB,
 				NewNode2(ADD,
 					NewNode2(SUB,
 						NewNodeV(VAR_NODE, 1),
@@ -262,47 +293,12 @@ func TestParse(t *testing.T) {
 					),
 					NewNodeV(CONST, 3),
 				),
+				NewNodeV(CONST, 2),
 			),
 		},
-		{
-			input: []Symbol{
-				{VARIABLE, "b"},
-				{MINUS, "-"},
-				{INTEGER, "2"},
-				{PLUS, "+"},
-				{INTEGER, "3"},
-				{MINUS, "-"},
-				{INTEGER, "2"},
-				{END, ""},
-			},
-			expected: NewNode1(PROG,
-				NewNode2(SUB,
-					NewNode2(ADD,
-						NewNode2(SUB,
-							NewNodeV(VAR_NODE, 1),
-							NewNodeV(CONST, 2),
-						),
-						NewNodeV(CONST, 3),
-					),
-					NewNodeV(CONST, 2),
-				),
-			),
-		},
-	}
-
-	testFunc := func(tc TestCase) func(*testing.T) {
-		return func(t *testing.T) {
-			root, err := parse(tc.input)
-			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-			if !reflect.DeepEqual(root, tc.expected) {
-				t.Errorf("\nExpected:\t%v\nGot:\t\t%v", tc.expected, root)
-			}
-		}
 	}
 
 	for i, tc := range testCases {
-		t.Run(fmt.Sprintf("Example %d", i+1), testFunc(tc))
+		t.Run(fmt.Sprintf("Example %d", i+1), ParserTestFunc(tc, sum))
 	}
 }
