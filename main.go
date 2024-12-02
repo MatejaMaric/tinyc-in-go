@@ -383,9 +383,11 @@ func term(state State) (*Node, State, error) {
 		return NewNodeV(CONST, val), state, nil
 	}
 
-	// n = paren_expr(consume, peek) // Unimplemented
+	if sym.Type == RIGHT_PARN {
+		return paren_expr(state)
+	}
 
-	return nil, state, fmt.Errorf("Expected VARIABLE or INTEGER, got %s", sym)
+	return nil, state, fmt.Errorf("Expected VARIABLE, INTEGER or RIGHT_PARN, got %s", sym)
 }
 
 // <sum> ::= <term> | <sum> "+" <term> | <sum> "-" <term>
@@ -422,6 +424,70 @@ func sumPrime(state State, prev *Node) (*Node, State, error) {
 	}
 
 	return sumPrime(state, n)
+}
+
+// <test> ::= <sum> | <sum> "<" <sum>
+func test(state State) (*Node, State, error) {
+	s1, state, err := sum(state)
+	if err != nil {
+		return nil, state, err
+	}
+
+	sym := peek(state)
+	if sym.Type != LESS {
+		return s1, state, nil
+	}
+	sym, state = consume(state)
+
+	s2, state, err := sum(state)
+	if err != nil {
+		return nil, state, err
+	}
+
+	return NewNode2(LT, s1, s2), state, nil
+}
+
+// <expr> ::= <test> | <id> "=" <expr>
+func expr(state State) (*Node, State, error) {
+	t, state, err := test(state)
+	if err != nil {
+		return nil, state, err
+	}
+
+	if t.Type == VAR_NODE && peek(state).Type == EQUAL {
+		_, state = consume(state)
+
+		e, state, err := expr(state)
+		if err != nil {
+			return nil, state, err
+		}
+
+		return NewNode2(SET, t, e), state, nil
+	}
+
+	return t, state, nil
+}
+
+// <paren_expr> ::= "(" <expr> ")"
+func paren_expr(state State) (*Node, State, error) {
+	if peek(state).Type == LEFT_PARN {
+		_, state = consume(state)
+	} else {
+		return nil, state, fmt.Errorf("Expected LEFT_PARN, got %s", peek(state))
+	}
+
+	e, state, err := expr(state)
+	if err != nil {
+		return nil, state, err
+	}
+
+	if peek(state).Type == RIGHT_PARN {
+		_, state = consume(state)
+	} else {
+		return nil, state, fmt.Errorf("Expected RIGHT_PARN, got %s", peek(state))
+	}
+
+	return e, state, nil
 }
 
 /*---------------------------------------------------------------------------*/
