@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strconv"
 	"unicode"
+	"unicode/utf8"
 )
 
 /*
@@ -127,12 +128,32 @@ func extractReservedWord(str string) (*Symbol, bool) {
 	return &Symbol{Type: symType, Value: str}, true
 }
 
-func lex(text string) ([]Symbol, error) {
-	symbols := []Symbol{}
-	consume, peek := strToRuneQueue(text)
+type LexState struct {
+	Data   string
+	Offset int
+}
 
+func peekRune(s LexState) rune {
+	r, _ := utf8.DecodeRuneInString(s.Data[s.Offset:])
+	return r
+}
+
+func consumeRune(s LexState) (rune, LexState) {
+	r, n := utf8.DecodeRuneInString(s.Data[s.Offset:])
+	if r != utf8.RuneError {
+		s.Offset += n
+	}
+	return r, s
+}
+
+func lex(text string) ([]Symbol, error) {
+	var sym *Symbol
+	state := LexState{Data: text, Offset: 0}
+	var err error
+
+	symbols := []Symbol{}
 	for {
-		sym, err := nextSymbol(consume, peek)
+		sym, state, err = nextSymbol(state)
 		if err != nil {
 			return nil, err
 		}
@@ -148,118 +169,95 @@ func lex(text string) ([]Symbol, error) {
 	return symbols, nil
 }
 
-func strToRuneQueue(str string) (consume, peek func() (rune, bool)) {
-	runeIndex := 0
-	runeList := []rune(str)
+func nextSymbol(state LexState) (*Symbol, LexState, error) {
+	r, state := consumeRune(state)
 
-	consume = func() (rune, bool) {
-		if runeIndex > len(runeList)-1 {
-			return 0, false
-		}
-		char := runeList[runeIndex]
-		runeIndex++
-		return char, true
-	}
-
-	peek = func() (rune, bool) {
-		if runeIndex > len(runeList)-1 {
-			return 0, false
-		}
-		return runeList[runeIndex], true
-	}
-
-	return
-}
-
-func nextSymbol(consume, peek func() (rune, bool)) (*Symbol, error) {
-	c, ok := consume()
-	if !ok {
-		return &Symbol{Type: END, Value: ""}, nil
-	}
-
-	switch c {
+	switch r {
+	case utf8.RuneError:
+		return &Symbol{Type: END, Value: ""}, state, nil
 	case ' ':
-		return nil, nil
+		return nil, state, nil
 	case '\n':
-		return nil, nil
+		return nil, state, nil
 	case '{':
-		return &Symbol{Type: LEFT_BRACKET, Value: "{"}, nil
+		return &Symbol{Type: LEFT_BRACKET, Value: "{"}, state, nil
 	case '}':
-		return &Symbol{Type: RIGHT_BRACKET, Value: "}"}, nil
+		return &Symbol{Type: RIGHT_BRACKET, Value: "}"}, state, nil
 	case '(':
-		return &Symbol{Type: LEFT_PARN, Value: "("}, nil
+		return &Symbol{Type: LEFT_PARN, Value: "("}, state, nil
 	case ')':
-		return &Symbol{Type: RIGHT_PARN, Value: ")"}, nil
+		return &Symbol{Type: RIGHT_PARN, Value: ")"}, state, nil
 	case '+':
-		return &Symbol{Type: PLUS, Value: "+"}, nil
+		return &Symbol{Type: PLUS, Value: "+"}, state, nil
 	case '-':
-		return &Symbol{Type: MINUS, Value: "-"}, nil
+		return &Symbol{Type: MINUS, Value: "-"}, state, nil
 	case '<':
-		return &Symbol{Type: LESS, Value: "<"}, nil
+		return &Symbol{Type: LESS, Value: "<"}, state, nil
 	case ';':
-		return &Symbol{Type: SEMICOLON, Value: ";"}, nil
+		return &Symbol{Type: SEMICOLON, Value: ";"}, state, nil
 	case '=':
-		return &Symbol{Type: EQUAL, Value: "="}, nil
+		return &Symbol{Type: EQUAL, Value: "="}, state, nil
 	default:
-		if unicode.IsDigit(c) {
-			return handleInteger(c, consume, peek)
+		if unicode.IsDigit(r) {
+			return handleInteger(state, r)
 		}
-		if unicode.IsLetter(c) {
-			return handleLetters(c, consume, peek)
+		if unicode.IsLetter(r) {
+			return handleLetters(state, r)
 		}
 	}
 
-	return nil, fmt.Errorf("Unknown symbol: %v", c)
+	return nil, state, fmt.Errorf("Unknown symbol: %v", r)
 }
 
-func handleInteger(r rune, consume, peek func() (rune, bool)) (*Symbol, error) {
+func handleInteger(state LexState, r rune) (*Symbol, LexState, error) {
 	currentRune := r
 	runeList := make([]rune, 0)
 
 	for unicode.IsDigit(currentRune) {
 		runeList = append(runeList, currentRune)
 
-		peekedRune, ok := peek()
-		if !ok || !unicode.IsDigit(peekedRune) {
+		peekedRune := peekRune(state)
+		if !unicode.IsDigit(peekedRune) {
 			break
 		}
 
-		currentRune, ok = consume()
-		if !ok {
+		currentRune, state = consumeRune(state)
+		if currentRune == utf8.RuneError {
 			break
 		}
 	}
 
-	return &Symbol{Type: INTEGER, Value: string(runeList)}, nil
+	return &Symbol{Type: INTEGER, Value: string(runeList)}, state, nil
 }
 
-func handleLetters(r rune, consume, peek func() (rune, bool)) (*Symbol, error) {
+func handleLetters(state LexState, r rune) (*Symbol, LexState, error) {
 	currentRune := r
 	runeList := make([]rune, 0, 5)
 
 	for unicode.IsLetter(currentRune) {
 		runeList = append(runeList, currentRune)
 
-		peekedRune, ok := peek()
-		if !ok || !unicode.IsLetter(peekedRune) {
+		peekedRune := peekRune(state)
+		if !unicode.IsLetter(peekedRune) {
 			break
 		}
 
-		currentRune, ok = consume()
-		if !ok {
+		currentRune, state = consumeRune(state)
+		if currentRune == utf8.RuneError {
 			break
 		}
 	}
 
 	if len(runeList) == 1 {
-		return &Symbol{Type: VARIABLE, Value: string(runeList)}, nil
+		return &Symbol{Type: VARIABLE, Value: string(runeList)}, state, nil
 	}
 
 	sym, ok := extractReservedWord(string(runeList))
 	if !ok {
-		return nil, fmt.Errorf("Unknown reserved word: %s", string(runeList))
+		return nil, state, fmt.Errorf("Unknown reserved word: %s", string(runeList))
 	}
-	return sym, nil
+
+	return sym, state, nil
 }
 
 /*---------------------------------------------------------------------------*/
