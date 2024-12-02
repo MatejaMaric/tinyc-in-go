@@ -95,6 +95,15 @@ func (st SymbolType) String() string {
 	}[st]
 }
 
+func (st SymbolType) OneOf(types ...SymbolType) bool {
+	for _, t := range types {
+		if st == t {
+			return true
+		}
+	}
+	return false
+}
+
 type Symbol struct {
 	Type  SymbolType
 	Value string
@@ -397,7 +406,7 @@ func sum(state State) (*Node, State, error) {
 func sumPrime(state State, prev *Node) (*Node, State, error) {
 	sym := peek(state)
 
-	if sym.Type != PLUS && sym.Type != MINUS {
+	if !sym.Type.OneOf(PLUS, MINUS) {
 		return prev, state, nil
 	}
 	sym, state = consume(state)
