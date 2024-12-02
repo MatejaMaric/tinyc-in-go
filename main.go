@@ -384,8 +384,8 @@ func term(consume, peek func() (Symbol, bool)) *Node {
 	sym, _ := peek()
 
 	if sym.Type == VARIABLE {
-		n = NewNode(VAR_NODE)
-		n.Value = int(sym.Value[0] - 'a')
+		val := int(sym.Value[0] - 'a')
+		n = NewNodeV(VAR_NODE, val)
 		consume()
 	} else if sym.Type == INTEGER {
 		val, _ := strconv.Atoi(sym.Value)
@@ -396,31 +396,6 @@ func term(consume, peek func() (Symbol, bool)) *Node {
 	}
 
 	return n
-}
-
-// <sum> ::= <term> | <sum> "+" <term> | <sum> "-" <term>
-func sumOriginal(consume, peek func() (Symbol, bool)) *Node {
-	var t, x *Node
-	x = term(consume, peek)
-
-	sym, _ := peek()
-	for sym.Type == PLUS || sym.Type == MINUS {
-		t = x
-
-		if sym.Type == PLUS {
-			x = NewNode(ADD)
-		} else {
-			x = NewNode(SUB)
-		}
-
-		consume()
-		x.O1 = t
-		x.O2 = term(consume, peek)
-
-		sym, _ = peek()
-	}
-
-	return x
 }
 
 // <sum> ::= <term> | <sum> "+" <term> | <sum> "-" <term>
