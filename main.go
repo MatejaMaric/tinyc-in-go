@@ -490,6 +490,135 @@ func paren_expr(state State) (*Node, State, error) {
 	return e, state, nil
 }
 
+/*
+ *  <program> ::= <statement>
+ *  <statement> ::= "if" <paren_expr> <statement> |
+ *                  "if" <paren_expr> <statement> "else" <statement> |
+ *                  "while" <paren_expr> <statement> |
+ *                  "do" <statement> "while" <paren_expr> ";" |
+ *                  "{" { <statement> } "}" |
+ *                  <expr> ";" |
+ *                  ";"
+ */
+func statement(state State) (*Node, State, error) {
+	sym := peek(state)
+
+	// "if" <paren_expr> <statement>
+	if sym.Type == IF_SYM {
+		sym, state = consume(state)
+
+		pe, state, err := paren_expr(state)
+		if err != nil {
+			return nil, state, err
+		}
+		s1, state, err := statement(state)
+		if err != nil {
+			return nil, state, err
+		}
+
+		if peek(state).Type != ELSE_SYM {
+			return NewNode2(IF, pe, s1), state, nil
+		}
+
+		// ... "else" <statement>
+		sym, state = consume(state)
+		s2, state, err := statement(state)
+		if err != nil {
+			return nil, state, err
+		}
+
+		return NewNode3(IF_ELSE, pe, s1, s2), state, nil
+	}
+
+	// "while" <paren_expr> <statement>
+	if sym.Type == WHILE_SYM {
+		sym, state = consume(state)
+
+		pe, state, err := paren_expr(state)
+		if err != nil {
+			return nil, state, err
+		}
+
+		s1, state, err := statement(state)
+		if err != nil {
+			return nil, state, err
+		}
+
+		return NewNode2(WHILE, pe, s1), state, nil
+	}
+
+	// "do" <statement> "while" <paren_expr> ";"
+	if sym.Type == DO_SYM {
+		sym, state = consume(state)
+
+		s1, state, err := statement(state)
+		if err != nil {
+			return nil, state, err
+		}
+
+		if peek(state).Type == WHILE_SYM {
+			sym, state = consume(state)
+		} else {
+			return nil, state, fmt.Errorf("Expected WHILE_SYM, got %s", peek(state))
+		}
+
+		pe, state, err := paren_expr(state)
+		if err != nil {
+			return nil, state, err
+		}
+
+		if peek(state).Type == SEMICOLON {
+			sym, state = consume(state)
+		} else {
+			return nil, state, fmt.Errorf("Expected SEMICOLON, got %s", peek(state))
+		}
+
+		return NewNode2(DO, s1, pe), state, nil
+	}
+
+	// ";"
+	if sym.Type == SEMICOLON {
+		sym, state = consume(state)
+		return NewNode(EMPTY), state, nil
+	}
+
+	// "{" { <statement> } "}"
+	if sym.Type == LEFT_BRACKET {
+		var t, x, s *Node
+		var err error
+
+		_, state = consume(state)
+
+		x = NewNode(EMPTY)
+		for peek(state).Type != RIGHT_BRACKET {
+			t = x
+
+			s, state, err = statement(state)
+			if err != nil {
+				return nil, state, err
+			}
+
+			x = NewNode2(SEQ, t, s)
+		}
+
+		_, state = consume(state)
+	}
+
+	// <expr> ";"
+	e, state, err := expr(state)
+	if err != nil {
+		return nil, state, err
+	}
+
+	if peek(state).Type == SEMICOLON {
+		sym, state = consume(state)
+	} else {
+		return nil, state, fmt.Errorf("Expected SEMICOLON, got %s", peek(state))
+	}
+
+	return NewNode1(EXPR, e), state, nil
+}
+
 /*---------------------------------------------------------------------------*/
 /* Main program                                                              */
 /*---------------------------------------------------------------------------*/
