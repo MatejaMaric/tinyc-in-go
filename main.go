@@ -633,7 +633,7 @@ func statement_sequence(state State, prev *Node) (*Node, State, error) {
 /* Code generator                                                            */
 /*---------------------------------------------------------------------------*/
 
-type Instruction byte
+type Instruction int64
 
 const (
 	IFETCH Instruction = iota
@@ -649,60 +649,60 @@ const (
 	HALT
 )
 
-func convert(ast *Node) []byte {
+func convert(ast *Node) []int64 {
 	switch ast.Type {
 	case VAR_NODE:
-		return []byte{byte(IFETCH), byte(ast.Value)}
+		return []int64{int64(IFETCH), int64(ast.Value)}
 	case CONST:
-		return []byte{byte(IPUSH), byte(ast.Value)}
+		return []int64{int64(IPUSH), int64(ast.Value)}
 	case ADD:
-		return slices.Concat(convert(ast.O1), convert(ast.O2), []byte{byte(IADD)})
+		return slices.Concat(convert(ast.O1), convert(ast.O2), []int64{int64(IADD)})
 	case SUB:
-		return slices.Concat(convert(ast.O1), convert(ast.O2), []byte{byte(ISUB)})
+		return slices.Concat(convert(ast.O1), convert(ast.O2), []int64{int64(ISUB)})
 	case LT:
-		return slices.Concat(convert(ast.O1), convert(ast.O2), []byte{byte(ILT)})
+		return slices.Concat(convert(ast.O1), convert(ast.O2), []int64{int64(ILT)})
 	case SET:
-		return slices.Concat(convert(ast.O2), []byte{byte(ISTORE)}, []byte{byte(ast.O1.Value)})
+		return slices.Concat(convert(ast.O2), []int64{int64(ISTORE)}, []int64{int64(ast.O1.Value)})
 	case IF:
 		cond := convert(ast.O1)
 		s1 := convert(ast.O2)
 		s1SkipLength := len(s1)
-		return slices.Concat(cond, []byte{byte(JZ), byte(s1SkipLength)}, s1)
+		return slices.Concat(cond, []int64{int64(JZ), int64(s1SkipLength)}, s1)
 	case IF_ELSE:
 		cond := convert(ast.O1)
 		s1 := convert(ast.O2)
 		s2 := convert(ast.O3)
 		s1SkipLength := len(s1) + 2
 		s2SkipLength := len(s2)
-		return slices.Concat(cond, []byte{byte(JZ), byte(s1SkipLength)}, s1, []byte{byte(JMP), byte(s2SkipLength)}, s2)
+		return slices.Concat(cond, []int64{int64(JZ), int64(s1SkipLength)}, s1, []int64{int64(JMP), int64(s2SkipLength)}, s2)
 	case WHILE:
 		cond := convert(ast.O1)
 		s1 := convert(ast.O2)
 		s1SkipLength := len(s1) + 2
 		backtrackLength := len(cond) + s1SkipLength
-		return slices.Concat(cond, []byte{byte(JZ), byte(s1SkipLength)}, s1, []byte{byte(JMP), byte(backtrackLength)})
+		return slices.Concat(cond, []int64{int64(JZ), int64(s1SkipLength)}, s1, []int64{int64(JMP), int64(backtrackLength)})
 	case DO:
 		s1 := convert(ast.O1)
 		cond := convert(ast.O2)
 		backtrackLength := len(s1) + len(cond) + 2
-		return slices.Concat(s1, cond, []byte{byte(JNZ), byte(backtrackLength)})
+		return slices.Concat(s1, cond, []int64{int64(JNZ), int64(backtrackLength)})
 	case EMPTY:
-		return []byte{}
+		return []int64{}
 	case SEQUENCE:
 		return slices.Concat(convert(ast.O1), convert(ast.O2))
 	case EXPR:
-		return slices.Concat(convert(ast.O1), []byte{byte(IPOP)})
+		return slices.Concat(convert(ast.O1), []int64{int64(IPOP)})
 	case PROG:
-		return slices.Concat(convert(ast.O1), []byte{byte(HALT)})
+		return slices.Concat(convert(ast.O1), []int64{int64(HALT)})
 	}
-	return []byte{}
+	return []int64{}
 }
 
 /*---------------------------------------------------------------------------*/
 /* Virtual machine                                                           */
 /*---------------------------------------------------------------------------*/
 
-func run(program []byte) [26]int {
+func run(program []int64) [26]int {
 	globals := [26]int{}
 	stack := make([]int, 1000)
 	sp := 0
@@ -711,49 +711,49 @@ func run(program []byte) [26]int {
 		opcode := program[pc]
 		pc++
 		switch opcode {
-		case byte(IFETCH):
+		case int64(IFETCH):
 			stack[sp] = globals[program[pc]]
 			sp++
 			pc++
-		case byte(ISTORE):
+		case int64(ISTORE):
 			globals[program[pc]] = stack[sp-1]
 			pc++
-		case byte(IPUSH):
+		case int64(IPUSH):
 			stack[sp] = int(program[pc])
 			sp++
 			pc++
-		case byte(IPOP):
+		case int64(IPOP):
 			sp--
-		case byte(IADD):
+		case int64(IADD):
 			stack[sp-2] = stack[sp-2] + stack[sp-1]
 			sp--
-		case byte(ISUB):
+		case int64(ISUB):
 			stack[sp-2] = stack[sp-2] - stack[sp-1]
 			sp--
-		case byte(ILT):
+		case int64(ILT):
 			if stack[sp-2] < stack[sp-1] {
 				stack[sp-2] = 1
 			} else {
 				stack[sp-2] = 0
 			}
 			sp--
-		case byte(JMP):
+		case int64(JMP):
 			pc += int(program[pc])
-		case byte(JZ):
+		case int64(JZ):
 			sp--
 			if stack[sp] == 0 {
 				pc += int(program[pc])
 			} else {
 				pc++
 			}
-		case byte(JNZ):
+		case int64(JNZ):
 			sp--
 			if stack[sp] != 0 {
 				pc += int(program[pc])
 			} else {
 				pc++
 			}
-		case byte(HALT):
+		case int64(HALT):
 			running = false
 		}
 	}
