@@ -278,7 +278,7 @@ const (
 	WHILE
 	DO
 	EMPTY
-	SEQ
+	SEQUENCE
 	EXPR
 	PROG
 )
@@ -300,6 +300,10 @@ func (nt NodeType) String() string {
 		"EXPR",
 		"PROG",
 	}[nt]
+}
+
+func (nt NodeType) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf("\"%s\"", nt.String())), nil
 }
 
 type Node struct {
@@ -353,7 +357,7 @@ func consume(s State) (Symbol, State) {
 type Parser func(State) (*Node, State, error)
 
 func parse(state State) (*Node, State, error) {
-	statement, state, err := sum(state)
+	statement, state, err := statement(state)
 	if err != nil {
 		return nil, state, err
 	}
@@ -383,11 +387,11 @@ func term(state State) (*Node, State, error) {
 		return NewNodeV(CONST, val), state, nil
 	}
 
-	if sym.Type == RIGHT_PARN {
+	if sym.Type == LEFT_PARN {
 		return paren_expr(state)
 	}
 
-	return nil, state, fmt.Errorf("Expected VARIABLE, INTEGER or RIGHT_PARN, got %s", sym)
+	return nil, state, fmt.Errorf("Expected VARIABLE, INTEGER or LEFT_PARN, got %s", sym)
 }
 
 // <sum> ::= <term> | <sum> "+" <term> | <sum> "-" <term>
@@ -584,24 +588,14 @@ func statement(state State) (*Node, State, error) {
 
 	// "{" { <statement> } "}"
 	if sym.Type == LEFT_BRACKET {
-		var t, x, s *Node
-		var err error
-
 		_, state = consume(state)
-
-		x = NewNode(EMPTY)
-		for peek(state).Type != RIGHT_BRACKET {
-			t = x
-
-			s, state, err = statement(state)
-			if err != nil {
-				return nil, state, err
-			}
-
-			x = NewNode2(SEQ, t, s)
+		res, state, err := statement_sequence(state, NewNode(EMPTY))
+		if err != nil {
+			return nil, state, err
 		}
-
 		_, state = consume(state)
+
+		return res, state, nil
 	}
 
 	// <expr> ";"
@@ -617,6 +611,19 @@ func statement(state State) (*Node, State, error) {
 	}
 
 	return NewNode1(EXPR, e), state, nil
+}
+
+func statement_sequence(state State, prev *Node) (*Node, State, error) {
+	if peek(state).Type == RIGHT_BRACKET {
+		return prev, state, nil
+	}
+
+	s, state, err := statement(state)
+	if err != nil {
+		return nil, state, err
+	}
+
+	return statement_sequence(state, NewNode2(SEQUENCE, prev, s))
 }
 
 /*---------------------------------------------------------------------------*/
