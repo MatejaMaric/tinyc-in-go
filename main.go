@@ -652,48 +652,48 @@ const (
 func convert(ast *Node) []Instruction {
 	switch ast.Type {
 	case VAR_NODE:
-		return []Instruction{Instruction(IFETCH), Instruction(ast.Value)}
+		return []Instruction{IFETCH, Instruction(ast.Value)}
 	case CONST:
-		return []Instruction{Instruction(IPUSH), Instruction(ast.Value)}
+		return []Instruction{IPUSH, Instruction(ast.Value)}
 	case ADD:
-		return slices.Concat(convert(ast.O1), convert(ast.O2), []Instruction{Instruction(IADD)})
+		return slices.Concat(convert(ast.O1), convert(ast.O2), []Instruction{IADD})
 	case SUB:
-		return slices.Concat(convert(ast.O1), convert(ast.O2), []Instruction{Instruction(ISUB)})
+		return slices.Concat(convert(ast.O1), convert(ast.O2), []Instruction{ISUB})
 	case LT:
-		return slices.Concat(convert(ast.O1), convert(ast.O2), []Instruction{Instruction(ILT)})
+		return slices.Concat(convert(ast.O1), convert(ast.O2), []Instruction{ILT})
 	case SET:
-		return slices.Concat(convert(ast.O2), []Instruction{Instruction(ISTORE)}, []Instruction{Instruction(ast.O1.Value)})
+		return slices.Concat(convert(ast.O2), []Instruction{ISTORE}, []Instruction{Instruction(ast.O1.Value)})
 	case IF:
 		cond := convert(ast.O1)
 		s1 := convert(ast.O2)
 		s1SkipLength := len(s1)
-		return slices.Concat(cond, []Instruction{Instruction(JZ), Instruction(s1SkipLength)}, s1)
+		return slices.Concat(cond, []Instruction{JZ, Instruction(s1SkipLength)}, s1)
 	case IF_ELSE:
 		cond := convert(ast.O1)
 		s1 := convert(ast.O2)
 		s2 := convert(ast.O3)
 		s1SkipLength := len(s1) + 2
 		s2SkipLength := len(s2)
-		return slices.Concat(cond, []Instruction{Instruction(JZ), Instruction(s1SkipLength)}, s1, []Instruction{Instruction(JMP), Instruction(s2SkipLength)}, s2)
+		return slices.Concat(cond, []Instruction{JZ, Instruction(s1SkipLength)}, s1, []Instruction{JMP, Instruction(s2SkipLength)}, s2)
 	case WHILE:
 		cond := convert(ast.O1)
 		s1 := convert(ast.O2)
 		s1SkipLength := len(s1) + 2
 		backtrackLength := len(cond) + s1SkipLength
-		return slices.Concat(cond, []Instruction{Instruction(JZ), Instruction(s1SkipLength)}, s1, []Instruction{Instruction(JMP), Instruction(backtrackLength)})
+		return slices.Concat(cond, []Instruction{JZ, Instruction(s1SkipLength)}, s1, []Instruction{JMP, Instruction(backtrackLength)})
 	case DO:
 		s1 := convert(ast.O1)
 		cond := convert(ast.O2)
 		backtrackLength := len(s1) + len(cond) + 2
-		return slices.Concat(s1, cond, []Instruction{Instruction(JNZ), Instruction(backtrackLength)})
+		return slices.Concat(s1, cond, []Instruction{JNZ, Instruction(backtrackLength)})
 	case EMPTY:
 		return []Instruction{}
 	case SEQUENCE:
 		return slices.Concat(convert(ast.O1), convert(ast.O2))
 	case EXPR:
-		return slices.Concat(convert(ast.O1), []Instruction{Instruction(IPOP)})
+		return slices.Concat(convert(ast.O1), []Instruction{IPOP})
 	case PROG:
-		return slices.Concat(convert(ast.O1), []Instruction{Instruction(HALT)})
+		return slices.Concat(convert(ast.O1), []Instruction{HALT})
 	}
 	return []Instruction{}
 }
