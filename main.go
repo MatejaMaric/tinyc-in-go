@@ -19,7 +19,9 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
 	"unicode"
@@ -697,8 +699,96 @@ func convert(ast *Node) []byte {
 }
 
 /*---------------------------------------------------------------------------*/
+/* Virtual machine                                                           */
+/*---------------------------------------------------------------------------*/
+
+func run(program []byte) [26]int {
+	globals := [26]int{}
+	stack := make([]int, 1000)
+	sp := 0
+	pc := 0
+	for running := true; running; {
+		opcode := program[pc]
+		pc++
+		switch opcode {
+		case byte(IFETCH):
+			stack[sp] = globals[program[pc]]
+			sp++
+			pc++
+		case byte(ISTORE):
+			globals[program[pc]] = stack[sp-1]
+			pc++
+		case byte(IPUSH):
+			stack[sp] = int(program[pc])
+			sp++
+			pc++
+		case byte(IPOP):
+			sp--
+		case byte(IADD):
+			stack[sp-2] = stack[sp-2] + stack[sp-1]
+			sp--
+		case byte(ISUB):
+			stack[sp-2] = stack[sp-2] - stack[sp-1]
+			sp--
+		case byte(ILT):
+			if stack[sp-2] < stack[sp-1] {
+				stack[sp-2] = 1
+			} else {
+				stack[sp-2] = 0
+			}
+			sp--
+		case byte(JMP):
+			pc += int(program[pc])
+		case byte(JZ):
+			sp--
+			if stack[sp] == 0 {
+				pc += int(program[pc])
+			} else {
+				pc++
+			}
+		case byte(JNZ):
+			sp--
+			if stack[sp] != 0 {
+				pc += int(program[pc])
+			} else {
+				pc++
+			}
+		case byte(HALT):
+			running = false
+		}
+	}
+
+	return globals
+}
+
+/*---------------------------------------------------------------------------*/
 /* Main program                                                              */
 /*---------------------------------------------------------------------------*/
 
 func main() {
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+
+	symbols, err := lex(input)
+	if err != nil {
+		fmt.Println("Lexer error:", err)
+		return
+	}
+
+	state := State{Data: symbols, Offset: 0}
+	ast, _, err := parse(state)
+	if err != nil {
+		fmt.Println("Parser error", err)
+		return
+	}
+
+	program := convert(ast)
+
+	vars := run(program)
+
+	for i, v := range vars {
+		if v != 0 {
+			fmt.Printf("%c = %d\n", 'a'+i, v)
+		}
+	}
 }
