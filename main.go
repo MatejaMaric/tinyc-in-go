@@ -20,6 +20,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"unicode"
 	"unicode/utf8"
@@ -624,6 +625,75 @@ func statement_sequence(state State, prev *Node) (*Node, State, error) {
 	}
 
 	return statement_sequence(state, NewNode2(SEQUENCE, prev, s))
+}
+
+/*---------------------------------------------------------------------------*/
+/* Code generator                                                            */
+/*---------------------------------------------------------------------------*/
+
+type Instruction byte
+
+const (
+	IFETCH Instruction = iota
+	ISTORE
+	IPUSH
+	IPOP
+	IADD
+	ISUB
+	ILT
+	JZ
+	JNZ
+	JMP
+	HALT
+)
+
+func convert(ast *Node) []byte {
+	switch ast.Type {
+	case VAR_NODE:
+		return []byte{byte(IFETCH), byte(ast.Value)}
+	case CONST:
+		return []byte{byte(IPUSH), byte(ast.Value)}
+	case ADD:
+		return slices.Concat(convert(ast.O1), convert(ast.O2), []byte{byte(IADD)})
+	case SUB:
+		return slices.Concat(convert(ast.O1), convert(ast.O2), []byte{byte(ISUB)})
+	case LT:
+		return slices.Concat(convert(ast.O1), convert(ast.O2), []byte{byte(ILT)})
+	case SET:
+		return slices.Concat(convert(ast.O2), []byte{byte(ISTORE)}, []byte{byte(ast.O1.Value)})
+	case IF:
+		cond := convert(ast.O1)
+		s1 := convert(ast.O2)
+		s1SkipLength := len(s1)
+		return slices.Concat(cond, []byte{byte(JZ), byte(s1SkipLength)}, s1)
+	case IF_ELSE:
+		cond := convert(ast.O1)
+		s1 := convert(ast.O2)
+		s2 := convert(ast.O3)
+		s1SkipLength := len(s1) + 2
+		s2SkipLength := len(s2)
+		return slices.Concat(cond, []byte{byte(JZ), byte(s1SkipLength)}, s1, []byte{byte(JMP), byte(s2SkipLength)}, s2)
+	case WHILE:
+		cond := convert(ast.O1)
+		s1 := convert(ast.O2)
+		s1SkipLength := len(s1) + 2
+		backtrackLength := len(cond) + s1SkipLength
+		return slices.Concat(cond, []byte{byte(JZ), byte(s1SkipLength)}, s1, []byte{byte(JMP), byte(backtrackLength)})
+	case DO:
+		s1 := convert(ast.O1)
+		cond := convert(ast.O2)
+		backtrackLength := len(s1) + len(cond) + 2
+		return slices.Concat(s1, cond, []byte{byte(JNZ), byte(backtrackLength)})
+	case EMPTY:
+		return []byte{}
+	case SEQUENCE:
+		return slices.Concat(convert(ast.O1), convert(ast.O2))
+	case EXPR:
+		return slices.Concat(convert(ast.O1), []byte{byte(IPOP)})
+	case PROG:
+		return slices.Concat(convert(ast.O1), []byte{byte(HALT)})
+	}
+	return []byte{}
 }
 
 /*---------------------------------------------------------------------------*/
