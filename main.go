@@ -311,7 +311,7 @@ func (nt NodeType) MarshalJSON() ([]byte, error) {
 
 type Node struct {
 	Type       NodeType
-	Value      int
+	Value      int64
 	O1, O2, O3 *Node
 }
 
@@ -323,7 +323,7 @@ func NewNode(ntype NodeType) *Node {
 	return &Node{Type: ntype}
 }
 
-func NewNodeV(ntype NodeType, value int) *Node {
+func NewNodeV(ntype NodeType, value int64) *Node {
 	return &Node{ntype, value, nil, nil, nil}
 }
 
@@ -380,13 +380,13 @@ func term(state State) (*Node, State, error) {
 
 	if sym.Type == VARIABLE {
 		sym, state = consume(state)
-		val := int(sym.Value[0] - 'a')
+		val := int64(sym.Value[0] - 'a')
 		return NewNodeV(VAR_NODE, val), state, nil
 	}
 
 	if sym.Type == INTEGER {
 		sym, state = consume(state)
-		val, _ := strconv.Atoi(sym.Value)
+		val, _ := strconv.ParseInt(sym.Value, 10, 64)
 		return NewNodeV(CONST, val), state, nil
 	}
 
@@ -649,6 +649,27 @@ const (
 	HALT
 )
 
+// I didn't implement Stringer interface since I find it easier to see consts and variables in the output
+func (i Instruction) ToString() string {
+	strs := [...]string{
+		"IFETCH",
+		"ISTORE",
+		"IPUSH",
+		"IPOP",
+		"IADD",
+		"ISUB",
+		"ILT",
+		"JZ",
+		"JNZ",
+		"JMP",
+		"HALT",
+	}
+	if i < 0 || i >= Instruction(len(strs)) {
+		return fmt.Sprintf("%d", i)
+	}
+	return strs[i]
+}
+
 func convert(ast *Node) []Instruction {
 	switch ast.Type {
 	case VAR_NODE:
@@ -666,25 +687,25 @@ func convert(ast *Node) []Instruction {
 	case IF:
 		cond := convert(ast.O1)
 		s1 := convert(ast.O2)
-		s1SkipLength := len(s1)
+		s1SkipLength := 1 + len(s1)
 		return slices.Concat(cond, []Instruction{JZ, Instruction(s1SkipLength)}, s1)
 	case IF_ELSE:
 		cond := convert(ast.O1)
 		s1 := convert(ast.O2)
 		s2 := convert(ast.O3)
-		s1SkipLength := len(s1) + 2
-		s2SkipLength := len(s2)
+		s1SkipLength := 1 + len(s1) + len([]Instruction{JMP, Instruction(0)})
+		s2SkipLength := 1 + len(s2)
 		return slices.Concat(cond, []Instruction{JZ, Instruction(s1SkipLength)}, s1, []Instruction{JMP, Instruction(s2SkipLength)}, s2)
 	case WHILE:
 		cond := convert(ast.O1)
 		s1 := convert(ast.O2)
-		s1SkipLength := len(s1) + 2
-		backtrackLength := len(cond) + s1SkipLength
+		s1SkipLength := 1 + len(s1) + len([]Instruction{JMP, Instruction(0)})
+		backtrackLength := -(len(cond) + s1SkipLength)
 		return slices.Concat(cond, []Instruction{JZ, Instruction(s1SkipLength)}, s1, []Instruction{JMP, Instruction(backtrackLength)})
 	case DO:
 		s1 := convert(ast.O1)
 		cond := convert(ast.O2)
-		backtrackLength := len(s1) + len(cond) + 2
+		backtrackLength := -(len(s1) + len(cond) + len([]Instruction{JNZ}))
 		return slices.Concat(s1, cond, []Instruction{JNZ, Instruction(backtrackLength)})
 	case EMPTY:
 		return []Instruction{}
@@ -702,11 +723,11 @@ func convert(ast *Node) []Instruction {
 /* Virtual machine                                                           */
 /*---------------------------------------------------------------------------*/
 
-func run(program []Instruction) [26]int {
-	globals := [26]int{}
-	stack := make([]int, 1000)
-	sp := 0
-	pc := 0
+func run(program []Instruction) [26]int64 {
+	globals := [26]int64{}
+	stack := make([]int64, 1000)
+	var sp int64 = 0
+	var pc int64 = 0
 	for running := true; running; {
 		opcode := program[pc]
 		pc++
@@ -719,7 +740,7 @@ func run(program []Instruction) [26]int {
 			globals[program[pc]] = stack[sp-1]
 			pc++
 		case IPUSH:
-			stack[sp] = int(program[pc])
+			stack[sp] = int64(program[pc])
 			sp++
 			pc++
 		case IPOP:
@@ -738,18 +759,18 @@ func run(program []Instruction) [26]int {
 			}
 			sp--
 		case JMP:
-			pc += int(program[pc])
+			pc += int64(program[pc])
 		case JZ:
 			sp--
 			if stack[sp] == 0 {
-				pc += int(program[pc])
+				pc += int64(program[pc])
 			} else {
 				pc++
 			}
 		case JNZ:
 			sp--
 			if stack[sp] != 0 {
-				pc += int(program[pc])
+				pc += int64(program[pc])
 			} else {
 				pc++
 			}
