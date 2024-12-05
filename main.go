@@ -19,8 +19,8 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strconv"
@@ -787,10 +787,13 @@ func run(program []Instruction) [26]int64 {
 /*---------------------------------------------------------------------------*/
 
 func main() {
-	reader := bufio.NewReader(os.Stdin)
-	input, _ := reader.ReadString('\n')
+	input, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Println("Error reading from stdin:", err)
+		return
+	}
 
-	symbols, err := lex(input)
+	symbols, err := lex(string(input))
 	if err != nil {
 		fmt.Println("Lexer error:", err)
 		return
