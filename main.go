@@ -723,53 +723,73 @@ func convert(ast *Node) []Instruction {
 /* Virtual machine                                                           */
 /*---------------------------------------------------------------------------*/
 
+type Stack []int64
+
+func (s *Stack) Push(v int64) {
+	*s = append(*s, v)
+}
+
+func (s *Stack) Pop() int64 {
+	if len(*s) == 0 {
+		panic("virtual machine tried to pop from an empty stack")
+	}
+	v := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return v
+}
+
+func (s *Stack) Peek() int64 {
+	if len(*s) == 0 {
+		panic("virtual machine tried to peek from an empty stack")
+	}
+	return (*s)[len(*s)-1]
+}
+
 func run(program []Instruction) [26]int64 {
 	globals := [26]int64{}
-	stack := make([]int64, 1000)
-	var sp int64 = 0
+	stack := make(Stack, 1000)
 	var pc int64 = 0
 	for running := true; running; {
 		opcode := program[pc]
 		pc++
 		switch opcode {
 		case IFETCH:
-			stack[sp] = globals[program[pc]]
-			sp++
+			stack.Push(globals[program[pc]])
 			pc++
 		case ISTORE:
-			globals[program[pc]] = stack[sp-1]
+			globals[program[pc]] = stack.Peek()
 			pc++
 		case IPUSH:
-			stack[sp] = int64(program[pc])
-			sp++
+			stack.Push(int64(program[pc]))
 			pc++
 		case IPOP:
-			sp--
+			stack.Pop()
 		case IADD:
-			stack[sp-2] = stack[sp-2] + stack[sp-1]
-			sp--
+			b := stack.Pop()
+			a := stack.Pop()
+			stack.Push(a + b)
 		case ISUB:
-			stack[sp-2] = stack[sp-2] - stack[sp-1]
-			sp--
+			b := stack.Pop()
+			a := stack.Pop()
+			stack.Push(a - b)
 		case ILT:
-			if stack[sp-2] < stack[sp-1] {
-				stack[sp-2] = 1
+			b := stack.Pop()
+			a := stack.Pop()
+			if a < b {
+				stack.Push(1)
 			} else {
-				stack[sp-2] = 0
+				stack.Push(0)
 			}
-			sp--
 		case JMP:
 			pc += int64(program[pc])
 		case JZ:
-			sp--
-			if stack[sp] == 0 {
+			if stack.Pop() == 0 {
 				pc += int64(program[pc])
 			} else {
 				pc++
 			}
 		case JNZ:
-			sp--
-			if stack[sp] != 0 {
+			if stack.Pop() != 0 {
 				pc += int64(program[pc])
 			} else {
 				pc++
