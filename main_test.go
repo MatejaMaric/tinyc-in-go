@@ -240,6 +240,24 @@ func TestLex(t *testing.T) {
 				{END, ""},
 			},
 		},
+		{
+			input: "{ if (i=1) j=2; }",
+			expected: []Symbol{
+				{LEFT_BRACKET, "{"},
+				{IF_SYM, "if"},
+				{LEFT_PARN, "("},
+				{VARIABLE, "i"},
+				{EQUAL, "="},
+				{INTEGER, "1"},
+				{RIGHT_PARN, ")"},
+				{VARIABLE, "j"},
+				{EQUAL, "="},
+				{INTEGER, "2"},
+				{SEMICOLON, ";"},
+				{RIGHT_BRACKET, "}"},
+				{END, ""},
+			},
+		},
 	}
 
 	testFunc := func(tc TestCase) func(*testing.T) {
@@ -554,7 +572,6 @@ func TestParser(t *testing.T) {
 				),
 			),
 		},
-
 		{
 			input: []Symbol{
 				{SEMICOLON, ";"},
@@ -562,6 +579,34 @@ func TestParser(t *testing.T) {
 			},
 			// ";",
 			expected: NewNode1(PROG, NewNode(EMPTY)),
+		},
+		{
+			input: []Symbol{
+				{LEFT_BRACKET, "{"},
+				{IF_SYM, "if"},
+				{LEFT_PARN, "("},
+				{VARIABLE, "i"},
+				{EQUAL, "="},
+				{INTEGER, "1"},
+				{RIGHT_PARN, ")"},
+				{VARIABLE, "j"},
+				{EQUAL, "="},
+				{INTEGER, "2"},
+				{SEMICOLON, ";"},
+				{RIGHT_BRACKET, "}"},
+				{END, ""},
+			},
+			expected: NewNode1(PROG,
+				NewNode2(SEQUENCE,
+					NewNode(EMPTY),
+					NewNode2(IF,
+						// (i=1)
+						NewNode2(SET, NewNodeV(VAR_NODE, 8), NewNodeV(CONST, 1)),
+						// j=2;
+						NewNode1(EXPR, NewNode2(SET, NewNodeV(VAR_NODE, 9), NewNodeV(CONST, 2))),
+					),
+				),
+			),
 		},
 	}
 
@@ -616,11 +661,14 @@ func TestConvert(t *testing.T) {
 				),
 			),
 			expected: []Instruction{
+				// i=1;
 				NewInst(IPUSH),
 				NewValueInst(1),
 				NewInst(ISTORE),
 				NewValueInst(8),
 				NewInst(IPOP),
+
+				// i=i+10;
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IPUSH),
@@ -629,6 +677,8 @@ func TestConvert(t *testing.T) {
 				NewInst(ISTORE),
 				NewValueInst(8),
 				NewInst(IPOP),
+
+				// do while (i<50);
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IPUSH),
@@ -636,6 +686,8 @@ func TestConvert(t *testing.T) {
 				NewInst(ILT),
 				NewInst(JNZ),
 				NewValueInst(-14),
+
+				// end
 				NewInst(HALT),
 			},
 		},
@@ -671,16 +723,21 @@ func TestConvert(t *testing.T) {
 				),
 			),
 			expected: []Instruction{
+				// i=125;
 				NewInst(IPUSH),
 				NewValueInst(125),
 				NewInst(ISTORE),
 				NewValueInst(8),
 				NewInst(IPOP),
+
+				// j=100;
 				NewInst(IPUSH),
 				NewValueInst(100),
 				NewInst(ISTORE),
 				NewValueInst(9),
 				NewInst(IPOP),
+
+				// while (i-j)
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IFETCH),
@@ -688,6 +745,8 @@ func TestConvert(t *testing.T) {
 				NewInst(ISUB),
 				NewInst(JZ),
 				NewValueInst(28),
+
+				// if (i<j)
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IFETCH),
@@ -695,6 +754,8 @@ func TestConvert(t *testing.T) {
 				NewInst(ILT),
 				NewInst(JZ),
 				NewValueInst(11),
+
+				// j=j-i;
 				NewInst(IFETCH),
 				NewValueInst(9),
 				NewInst(IFETCH),
@@ -705,6 +766,8 @@ func TestConvert(t *testing.T) {
 				NewInst(IPOP),
 				NewInst(JMP),
 				NewValueInst(9),
+
+				// i=i-j;
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IFETCH),
@@ -713,8 +776,12 @@ func TestConvert(t *testing.T) {
 				NewInst(ISTORE),
 				NewValueInst(8),
 				NewInst(IPOP),
+
+				// back to while
 				NewInst(JMP),
 				NewValueInst(-33),
+
+				// end
 				NewInst(HALT),
 			},
 		},
@@ -744,11 +811,14 @@ func TestConvert(t *testing.T) {
 				),
 			),
 			expected: []Instruction{
+				// i=7;
 				NewInst(IPUSH),
 				NewValueInst(7),
 				NewInst(ISTORE),
 				NewValueInst(8),
 				NewInst(IPOP),
+
+				// if (i<5)
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IPUSH),
@@ -756,11 +826,15 @@ func TestConvert(t *testing.T) {
 				NewInst(ILT),
 				NewInst(JZ),
 				NewValueInst(6),
+
+				// x=1;
 				NewInst(IPUSH),
 				NewValueInst(1),
 				NewInst(ISTORE),
 				NewValueInst(23),
 				NewInst(IPOP),
+
+				// if (i<10)
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IPUSH),
@@ -768,11 +842,48 @@ func TestConvert(t *testing.T) {
 				NewInst(ILT),
 				NewInst(JZ),
 				NewValueInst(6),
+
+				// y=2;
 				NewInst(IPUSH),
 				NewValueInst(2),
 				NewInst(ISTORE),
 				NewValueInst(24),
 				NewInst(IPOP),
+
+				// end
+				NewInst(HALT),
+			},
+		},
+		{
+			// "{ if (i=1) j=2; }",
+			input: NewNode1(PROG,
+				NewNode2(SEQUENCE,
+					NewNode(EMPTY),
+					NewNode2(IF,
+						// (i=1)
+						NewNode2(SET, NewNodeV(VAR_NODE, 8), NewNodeV(CONST, 1)),
+						// j=2;
+						NewNode1(EXPR, NewNode2(SET, NewNodeV(VAR_NODE, 9), NewNodeV(CONST, 2))),
+					),
+				),
+			),
+			expected: []Instruction{
+				// if (i=1)
+				NewInst(IPUSH),
+				NewValueInst(1),
+				NewInst(ISTORE),
+				NewValueInst(8),
+				NewInst(JZ),
+				NewValueInst(6),
+
+				// j=2;
+				NewInst(IPUSH),
+				NewValueInst(2),
+				NewInst(ISTORE),
+				NewValueInst(9),
+				NewInst(IPOP),
+
+				// end
 				NewInst(HALT),
 			},
 		},
@@ -802,11 +913,14 @@ func TestRun(t *testing.T) {
 		{
 			// "{ i=1; do i=i+10; while (i<50); }",
 			input: []Instruction{
+				// i=1;
 				NewInst(IPUSH),
 				NewValueInst(1),
 				NewInst(ISTORE),
 				NewValueInst(8),
 				NewInst(IPOP),
+
+				// i=i+10;
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IPUSH),
@@ -815,6 +929,8 @@ func TestRun(t *testing.T) {
 				NewInst(ISTORE),
 				NewValueInst(8),
 				NewInst(IPOP),
+
+				// do while (i<50);
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IPUSH),
@@ -822,6 +938,8 @@ func TestRun(t *testing.T) {
 				NewInst(ILT),
 				NewInst(JNZ),
 				NewValueInst(-14),
+
+				// end
 				NewInst(HALT),
 			},
 			// i = 51
@@ -830,16 +948,21 @@ func TestRun(t *testing.T) {
 		{
 			// "{ i=125; j=100; while (i-j) if (i<j) j=j-i; else i=i-j; }",
 			input: []Instruction{
+				// i=125;
 				NewInst(IPUSH),
 				NewValueInst(125),
 				NewInst(ISTORE),
 				NewValueInst(8),
 				NewInst(IPOP),
+
+				// j=100;
 				NewInst(IPUSH),
 				NewValueInst(100),
 				NewInst(ISTORE),
 				NewValueInst(9),
 				NewInst(IPOP),
+
+				// while (i-j)
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IFETCH),
@@ -847,6 +970,8 @@ func TestRun(t *testing.T) {
 				NewInst(ISUB),
 				NewInst(JZ),
 				NewValueInst(28),
+
+				// if (i<j)
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IFETCH),
@@ -854,6 +979,8 @@ func TestRun(t *testing.T) {
 				NewInst(ILT),
 				NewInst(JZ),
 				NewValueInst(11),
+
+				// j=j-i;
 				NewInst(IFETCH),
 				NewValueInst(9),
 				NewInst(IFETCH),
@@ -864,6 +991,8 @@ func TestRun(t *testing.T) {
 				NewInst(IPOP),
 				NewInst(JMP),
 				NewValueInst(9),
+
+				// i=i-j;
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IFETCH),
@@ -872,8 +1001,12 @@ func TestRun(t *testing.T) {
 				NewInst(ISTORE),
 				NewValueInst(8),
 				NewInst(IPOP),
+
+				// back to while
 				NewInst(JMP),
 				NewValueInst(-33),
+
+				// end
 				NewInst(HALT),
 			},
 			// i = 25, j = 25
@@ -882,11 +1015,14 @@ func TestRun(t *testing.T) {
 		{
 			// "{ i=7; if (i<5) x=1; if (i<10) y=2; }",
 			input: []Instruction{
+				// i=7;
 				NewInst(IPUSH),
 				NewValueInst(7),
 				NewInst(ISTORE),
 				NewValueInst(8),
 				NewInst(IPOP),
+
+				// if (i<5)
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IPUSH),
@@ -894,11 +1030,15 @@ func TestRun(t *testing.T) {
 				NewInst(ILT),
 				NewInst(JZ),
 				NewValueInst(6),
+
+				// x=1;
 				NewInst(IPUSH),
 				NewValueInst(1),
 				NewInst(ISTORE),
 				NewValueInst(23),
 				NewInst(IPOP),
+
+				// if (i<10)
 				NewInst(IFETCH),
 				NewValueInst(8),
 				NewInst(IPUSH),
@@ -906,15 +1046,42 @@ func TestRun(t *testing.T) {
 				NewInst(ILT),
 				NewInst(JZ),
 				NewValueInst(6),
+
+				// y=2;
 				NewInst(IPUSH),
 				NewValueInst(2),
 				NewInst(ISTORE),
 				NewValueInst(24),
 				NewInst(IPOP),
+
+				// end
 				NewInst(HALT),
 			},
 			// i = 7, y = 2
 			expected: [26]int64{0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0},
+		},
+		{
+			// "{ if (i=1) j=2; }",
+			input: []Instruction{
+				// if (i=1)
+				NewInst(IPUSH),
+				NewValueInst(1),
+				NewInst(ISTORE),
+				NewValueInst(8),
+				NewInst(JZ),
+				NewValueInst(6),
+
+				// j=2;
+				NewInst(IPUSH),
+				NewValueInst(2),
+				NewInst(ISTORE),
+				NewValueInst(9),
+				NewInst(IPOP),
+
+				// end
+				NewInst(HALT),
+			},
+			expected: [26]int64{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		},
 	}
 
