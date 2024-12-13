@@ -27,6 +27,46 @@ import (
 	"testing"
 )
 
+func TestSymbolString(t *testing.T) {
+	type TestCase struct {
+		symbol   Symbol
+		expected string
+	}
+
+	testCases := []TestCase{
+		{
+			symbol:   Symbol{VARIABLE, "a"},
+			expected: "VARIABLE(a)",
+		},
+		{
+			symbol:   Symbol{EQUAL, "="},
+			expected: "EQUAL(=)",
+		},
+		{
+			symbol:   Symbol{INTEGER, "2"},
+			expected: "INTEGER(2)",
+		},
+		{
+			symbol:   Symbol{LESS, "<"},
+			expected: "LESS(<)",
+		},
+		{
+			symbol:   Symbol{SEMICOLON, ";"},
+			expected: "SEMICOLON(;)",
+		},
+		{
+			symbol:   Symbol{END, ""},
+			expected: "END()",
+		},
+	}
+
+	for _, tc := range testCases {
+		if got := tc.symbol.String(); got != tc.expected {
+			t.Errorf("\nExpected:\t%s\nGot:\t%s", tc.expected, got)
+		}
+	}
+}
+
 func TestLex(t *testing.T) {
 	type TestCase struct {
 		input    string
@@ -214,6 +254,26 @@ func TestLex(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("Example %d", i+1), testFunc(tc))
+	}
+}
+
+func TestNodeString(t *testing.T) {
+	type TestCase struct {
+		node     *Node
+		expected string
+	}
+
+	testCases := []TestCase{
+		{
+			node:     NewNodeV(VAR_NODE, 1),
+			expected: fmt.Sprintf("\n(VAR_NODE(1)<nil> <nil> <nil>)"),
+		},
+	}
+
+	for _, tc := range testCases {
+		if got := tc.node.String(); got != tc.expected {
+			t.Errorf("\nExpected:\t%s\nGot:\t%s", tc.expected, got)
+		}
 	}
 }
 
@@ -505,6 +565,25 @@ func TestParser(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("Example %d", i+1), ParserTestFunc(fmt.Sprintf("parser_example_%d", i+1), tc, parse))
+	}
+}
+
+func TestInstructionString(t *testing.T) {
+	type TestCase struct {
+		inst     Instruction
+		expected string
+	}
+	testCases := []TestCase{
+		{NewInst(IPUSH), "IPUSH"},
+		{NewValueInst(1), "1"},
+		{NewInst(ISTORE), "ISTORE"},
+		{NewValueInst(8), "8"},
+	}
+
+	for _, tc := range testCases {
+		if got := tc.inst.String(); got != tc.expected {
+			t.Errorf("\nExpected:\t%s\nGot:\t%s", tc.expected, got)
+		}
 	}
 }
 
