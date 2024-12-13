@@ -633,10 +633,10 @@ func statement_sequence(state State, prev *Node) (*Node, State, error) {
 /* Code generator                                                            */
 /*---------------------------------------------------------------------------*/
 
-type Instruction int64
+type InstructionType int64
 
 const (
-	IFETCH Instruction = iota
+	IFETCH InstructionType = iota
 	ISTORE
 	IPUSH
 	IPOP
@@ -649,8 +649,7 @@ const (
 	HALT
 )
 
-// I didn't implement Stringer interface since I find it easier to see consts and variables in the output
-func (i Instruction) ToString() string {
+func (i InstructionType) String() string {
 	strs := [...]string{
 		"IFETCH",
 		"ISTORE",
@@ -664,57 +663,112 @@ func (i Instruction) ToString() string {
 		"JMP",
 		"HALT",
 	}
-	if i < 0 || i >= Instruction(len(strs)) {
-		return fmt.Sprintf("%d", i)
+	if i < 0 || i >= InstructionType(len(strs)) {
+		return fmt.Sprintf("UNKNOWN(%d)", i)
 	}
 	return strs[i]
+}
+
+type Instruction struct {
+	Value   int64
+	IsValue bool
+}
+
+func (i Instruction) String() string {
+	if i.IsValue {
+		return fmt.Sprintf("%d", i.Value)
+	}
+	return InstructionType(i.Value).String()
+}
+
+func NewInst(i InstructionType) Instruction {
+	return Instruction{Value: int64(i), IsValue: false}
+}
+
+func NewValueInst(i int64) Instruction {
+	return Instruction{Value: i, IsValue: true}
+}
+
+func NewInstArr(types ...InstructionType) []Instruction {
+	instructions := make([]Instruction, 0, len(types))
+	for _, t := range types {
+		instructions = append(instructions, NewInst(t))
+	}
+	return instructions
+}
+
+func NewValueInstArr(values ...int64) []Instruction {
+	instructions := make([]Instruction, 0, len(values))
+	for _, t := range values {
+		instructions = append(instructions, NewValueInst(t))
+	}
+	return instructions
 }
 
 func convert(ast *Node) []Instruction {
 	switch ast.Type {
 	case VAR_NODE:
-		return []Instruction{IFETCH, Instruction(ast.Value)}
+		return []Instruction{NewInst(IFETCH), NewValueInst(ast.Value)}
 	case CONST:
-		return []Instruction{IPUSH, Instruction(ast.Value)}
+		return []Instruction{NewInst(IPUSH), NewValueInst(ast.Value)}
 	case ADD:
-		return slices.Concat(convert(ast.O1), convert(ast.O2), []Instruction{IADD})
+		return slices.Concat(convert(ast.O1), convert(ast.O2), NewInstArr(IADD))
 	case SUB:
-		return slices.Concat(convert(ast.O1), convert(ast.O2), []Instruction{ISUB})
+		return slices.Concat(convert(ast.O1), convert(ast.O2), NewInstArr(ISUB))
 	case LT:
-		return slices.Concat(convert(ast.O1), convert(ast.O2), []Instruction{ILT})
+		return slices.Concat(convert(ast.O1), convert(ast.O2), NewInstArr(ILT))
 	case SET:
-		return slices.Concat(convert(ast.O2), []Instruction{ISTORE}, []Instruction{Instruction(ast.O1.Value)})
+		return slices.Concat(convert(ast.O2), NewInstArr(ISTORE), NewValueInstArr(ast.O1.Value))
 	case IF:
 		cond := convert(ast.O1)
 		s1 := convert(ast.O2)
-		s1SkipLength := 1 + len(s1)
-		return slices.Concat(cond, []Instruction{JZ, Instruction(s1SkipLength)}, s1)
+		s1SkipLength := int64(1 + len(s1))
+		return slices.Concat(
+			cond,
+			[]Instruction{NewInst(JZ), NewValueInst(s1SkipLength)},
+			s1,
+		)
 	case IF_ELSE:
 		cond := convert(ast.O1)
 		s1 := convert(ast.O2)
 		s2 := convert(ast.O3)
-		s1SkipLength := 1 + len(s1) + len([]Instruction{JMP, Instruction(0)})
-		s2SkipLength := 1 + len(s2)
-		return slices.Concat(cond, []Instruction{JZ, Instruction(s1SkipLength)}, s1, []Instruction{JMP, Instruction(s2SkipLength)}, s2)
+		s1SkipLength := int64(1 + len(s1) + len([]Instruction{NewInst(JMP), NewValueInst(0)}))
+		s2SkipLength := int64(1 + len(s2))
+		return slices.Concat(
+			cond,
+			[]Instruction{NewInst(JZ), NewValueInst(s1SkipLength)},
+			s1,
+			[]Instruction{NewInst(JMP), NewValueInst(s2SkipLength)},
+			s2,
+		)
 	case WHILE:
 		cond := convert(ast.O1)
 		s1 := convert(ast.O2)
-		s1SkipLength := 1 + len(s1) + len([]Instruction{JMP, Instruction(0)})
-		backtrackLength := -(len(cond) + s1SkipLength)
-		return slices.Concat(cond, []Instruction{JZ, Instruction(s1SkipLength)}, s1, []Instruction{JMP, Instruction(backtrackLength)})
+		s1SkipLength := int64(1 + len(s1) + len([]Instruction{NewInst(JMP), NewValueInst(0)}))
+		backtrackLength := -(int64(len(cond)) + s1SkipLength)
+		return slices.Concat(
+			cond,
+			[]Instruction{NewInst(JZ), NewValueInst(s1SkipLength)},
+			s1,
+			[]Instruction{NewInst(JMP), NewValueInst(backtrackLength)},
+		)
 	case DO:
 		s1 := convert(ast.O1)
 		cond := convert(ast.O2)
-		backtrackLength := -(len(s1) + len(cond) + len([]Instruction{JNZ}))
-		return slices.Concat(s1, cond, []Instruction{JNZ, Instruction(backtrackLength)})
+		backtrackLength := int64(-(len(s1) + len(cond) + len([]Instruction{NewInst(JNZ)})))
+		return slices.Concat(
+			s1,
+			cond,
+			[]Instruction{NewInst(JNZ), NewValueInst(backtrackLength)},
+		)
 	case EMPTY:
 		return []Instruction{}
 	case SEQUENCE:
 		return slices.Concat(convert(ast.O1), convert(ast.O2))
 	case EXPR:
-		return slices.Concat(convert(ast.O1), []Instruction{IPOP})
+		return slices.Concat(convert(ast.O1), NewInstArr(IPOP))
 	case PROG:
-		return slices.Concat(convert(ast.O1), []Instruction{HALT})
+		return slices.Concat(convert(ast.O1), NewInstArr(HALT))
 	}
 	return []Instruction{}
 }
@@ -751,16 +805,19 @@ func run(program []Instruction) [26]int64 {
 	var pc int64 = 0
 	for running := true; running; {
 		opcode := program[pc]
+		if opcode.IsValue {
+			panic(fmt.Sprintf("expected instruction, got value: %d", opcode.Value))
+		}
 		pc++
-		switch opcode {
+		switch InstructionType(opcode.Value) {
 		case IFETCH:
-			stack.Push(globals[program[pc]])
+			stack.Push(globals[program[pc].Value])
 			pc++
 		case ISTORE:
-			globals[program[pc]] = stack.Peek()
+			globals[program[pc].Value] = stack.Peek()
 			pc++
 		case IPUSH:
-			stack.Push(int64(program[pc]))
+			stack.Push(program[pc].Value)
 			pc++
 		case IPOP:
 			stack.Pop()
@@ -781,16 +838,16 @@ func run(program []Instruction) [26]int64 {
 				stack.Push(0)
 			}
 		case JMP:
-			pc += int64(program[pc])
+			pc += program[pc].Value
 		case JZ:
 			if stack.Pop() == 0 {
-				pc += int64(program[pc])
+				pc += program[pc].Value
 			} else {
 				pc++
 			}
 		case JNZ:
 			if stack.Pop() != 0 {
-				pc += int64(program[pc])
+				pc += program[pc].Value
 			} else {
 				pc++
 			}
