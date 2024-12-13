@@ -209,7 +209,7 @@ func nextSymbol(state LexState) (*Symbol, LexState, error) {
 		}
 	}
 
-	return nil, state, fmt.Errorf("Unknown symbol: %v", r)
+	return nil, state, fmt.Errorf("Unknown symbol: %c", r)
 }
 
 func handleInteger(state LexState, r rune) (*Symbol, LexState, error) {
@@ -863,33 +863,36 @@ func run(program []Instruction) [26]int64 {
 /* Main program                                                              */
 /*---------------------------------------------------------------------------*/
 
-func main() {
-	input, err := io.ReadAll(os.Stdin)
+func ReadAndExecute(r io.Reader) string {
+	input, err := io.ReadAll(r)
 	if err != nil {
-		fmt.Println("Error reading from stdin:", err)
-		return
+		return fmt.Sprintf("Error reading from stdin: %v\n", err)
 	}
 
 	symbols, err := lex(string(input))
 	if err != nil {
-		fmt.Println("Lexer error:", err)
-		return
+		return fmt.Sprintf("Lexer error: %v\n", err)
 	}
 
 	state := State{Data: symbols, Offset: 0}
 	ast, _, err := parse(state)
 	if err != nil {
-		fmt.Println("Parser error", err)
-		return
+		return fmt.Sprintf("Parser error: %v\n", err)
 	}
 
 	program := convert(ast)
 
 	vars := run(program)
 
+	result := ""
 	for i, v := range vars {
 		if v != 0 {
-			fmt.Printf("%c = %d\n", 'a'+i, v)
+			result += fmt.Sprintf("%c = %d\n", 'a'+i, v)
 		}
 	}
+	return result
+}
+
+func main() {
+	fmt.Print(ReadAndExecute(os.Stdin))
 }

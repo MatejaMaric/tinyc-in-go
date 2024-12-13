@@ -3,11 +3,11 @@
 A Go implementation of Marc Feeley's TinyC "compiler" (bytecode interpreter) from 2001.
 
 The are considerable differences between [the original Marc Feeley's implementation](https://www.iro.umontreal.ca/~felipe/IFT2030-Automne2002/Complements/tinyc.c) and this one:
-1. The original has ~300loc, while this one has ~700loc.
+1. The original has ~300loc, while this one has ~750loc.
 Although, just by applying different formatting to the original, it would probably double it's loc count.
 1. The original implementation heavily relied on global variables, this one does not.
 In this implementation the lexer, the parser, the code generator and the virtual machine are implemented as pure functions.
-1. This implementation has unit tests with coverage of ~80%.
+1. This implementation has unit tests with coverage of ~93%.
 
 ### How to use:
 

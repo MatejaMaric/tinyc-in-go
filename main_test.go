@@ -21,9 +21,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -927,5 +929,57 @@ func TestRun(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("Example %d", i+1), testFunc(tc))
+	}
+}
+
+func TestReadAndExecute(t *testing.T) {
+	type TestCase struct {
+		input    io.Reader
+		expected string
+	}
+
+	testCases := []TestCase{
+		{
+			input:    strings.NewReader("{ i=7; if (i<5) x=1; if (i<10) y=2; }"),
+			expected: fmt.Sprintf("i = 7\ny = 2\n"),
+		},
+		{
+			input:    strings.NewReader("{ i=7; if (i<5) x=something; }"),
+			expected: fmt.Sprintf("Lexer error: Unknown reserved word: something\n"),
+		},
+		{
+			input:    strings.NewReader("{ i=7; if (i<5) $x=3; }"),
+			expected: fmt.Sprintf("Lexer error: Unknown symbol: $\n"),
+		},
+		{
+			input:    strings.NewReader("{ i=7; if (i<5) x=; }"),
+			expected: fmt.Sprintf("Parser error: Expected VARIABLE, INTEGER or LEFT_PARN, got SEMICOLON(;)\n"),
+		},
+		{
+			input:    strings.NewReader("{ i=7; if (i<5 x=1; }"),
+			expected: fmt.Sprintf("Parser error: Expected RIGHT_PARN, got VARIABLE(x)\n"),
+		},
+		{
+			input:    strings.NewReader("{ i=7; if i<5) x=1; }"),
+			expected: fmt.Sprintf("Parser error: Expected LEFT_PARN, got VARIABLE(i)\n"),
+		},
+		{
+			input:    strings.NewReader("{ i=7; if (i<5) x=1 }"),
+			expected: fmt.Sprintf("Parser error: Expected SEMICOLON, got RIGHT_BRACKET(})\n"),
+		},
+		{
+			input:    strings.NewReader("{ i=1; do i=i+10; (i<50); }"),
+			expected: fmt.Sprintf("Parser error: Expected WHILE_SYM, got LEFT_PARN(()\n"),
+		},
+		{
+			input:    strings.NewReader("{ i=1; do i=i+10; while (i<50) }"),
+			expected: fmt.Sprintf("Parser error: Expected SEMICOLON, got RIGHT_BRACKET(})\n"),
+		},
+	}
+
+	for _, tc := range testCases {
+		if got := ReadAndExecute(tc.input); got != tc.expected {
+			t.Errorf("\nExpected:\t%s\nGot:\t%s", tc.expected, got)
+		}
 	}
 }
