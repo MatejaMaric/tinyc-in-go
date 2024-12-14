@@ -29,254 +29,6 @@ import (
 	"testing"
 )
 
-func TestSymbolString(t *testing.T) {
-	type TestCase struct {
-		symbol   Symbol
-		expected string
-	}
-
-	testCases := []TestCase{
-		{
-			symbol:   Symbol{VARIABLE, "a"},
-			expected: "VARIABLE(a)",
-		},
-		{
-			symbol:   Symbol{EQUAL, "="},
-			expected: "EQUAL(=)",
-		},
-		{
-			symbol:   Symbol{INTEGER, "2"},
-			expected: "INTEGER(2)",
-		},
-		{
-			symbol:   Symbol{LESS, "<"},
-			expected: "LESS(<)",
-		},
-		{
-			symbol:   Symbol{SEMICOLON, ";"},
-			expected: "SEMICOLON(;)",
-		},
-		{
-			symbol:   Symbol{END, ""},
-			expected: "END()",
-		},
-	}
-
-	for _, tc := range testCases {
-		if got := tc.symbol.String(); got != tc.expected {
-			t.Errorf("\nExpected:\t%s\nGot:\t%s", tc.expected, got)
-		}
-	}
-}
-
-func TestLex(t *testing.T) {
-	type TestCase struct {
-		input    string
-		expected []Symbol
-	}
-
-	testCases := []TestCase{
-		{
-			input: "a=b=c=2<3;",
-			expected: []Symbol{
-				{VARIABLE, "a"},
-				{EQUAL, "="},
-				{VARIABLE, "b"},
-				{EQUAL, "="},
-				{VARIABLE, "c"},
-				{EQUAL, "="},
-				{INTEGER, "2"},
-				{LESS, "<"},
-				{INTEGER, "3"},
-				{SEMICOLON, ";"},
-				{END, ""},
-			},
-		},
-		{
-			input: "{ i=1; while (i<100) i=i+i; }",
-			expected: []Symbol{
-				{LEFT_BRACKET, "{"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{INTEGER, "1"},
-				{SEMICOLON, ";"},
-				{WHILE_SYM, "while"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{LESS, "<"},
-				{INTEGER, "100"},
-				{RIGHT_PARN, ")"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{VARIABLE, "i"},
-				{PLUS, "+"},
-				{VARIABLE, "i"},
-				{SEMICOLON, ";"},
-				{RIGHT_BRACKET, "}"},
-				{END, ""},
-			},
-		},
-		{
-			input: "{ i=125; j=100; while (i-j) if (i<j) j=j-i; else i=i-j; }",
-			expected: []Symbol{
-				{LEFT_BRACKET, "{"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{INTEGER, "125"},
-				{SEMICOLON, ";"},
-				{VARIABLE, "j"},
-				{EQUAL, "="},
-				{INTEGER, "100"},
-				{SEMICOLON, ";"},
-				{WHILE_SYM, "while"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{MINUS, "-"},
-				{VARIABLE, "j"},
-				{RIGHT_PARN, ")"},
-				{IF_SYM, "if"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{LESS, "<"},
-				{VARIABLE, "j"},
-				{RIGHT_PARN, ")"},
-				{VARIABLE, "j"},
-				{EQUAL, "="},
-				{VARIABLE, "j"},
-				{MINUS, "-"},
-				{VARIABLE, "i"},
-				{SEMICOLON, ";"},
-				{ELSE_SYM, "else"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{VARIABLE, "i"},
-				{MINUS, "-"},
-				{VARIABLE, "j"},
-				{SEMICOLON, ";"},
-				{RIGHT_BRACKET, "}"},
-				{END, ""},
-			},
-		},
-		{
-			input: "{ i=1; do i=i+10; while (i<50); }",
-			expected: []Symbol{
-				{LEFT_BRACKET, "{"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{INTEGER, "1"},
-				{SEMICOLON, ";"},
-				{DO_SYM, "do"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{VARIABLE, "i"},
-				{PLUS, "+"},
-				{INTEGER, "10"},
-				{SEMICOLON, ";"},
-				{WHILE_SYM, "while"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{LESS, "<"},
-				{INTEGER, "50"},
-				{RIGHT_PARN, ")"},
-				{SEMICOLON, ";"},
-				{RIGHT_BRACKET, "}"},
-				{END, ""},
-			},
-		},
-		{
-			input: "{ i=1; while ((i=i+10)<50) ; }",
-			expected: []Symbol{
-				{LEFT_BRACKET, "{"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{INTEGER, "1"},
-				{SEMICOLON, ";"},
-				{WHILE_SYM, "while"},
-				{LEFT_PARN, "("},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{VARIABLE, "i"},
-				{PLUS, "+"},
-				{INTEGER, "10"},
-				{RIGHT_PARN, ")"},
-				{LESS, "<"},
-				{INTEGER, "50"},
-				{RIGHT_PARN, ")"},
-				{SEMICOLON, ";"},
-				{RIGHT_BRACKET, "}"},
-				{END, ""},
-			},
-		},
-		{
-			input: "{ i=7; if (i<5) x=1; if (i<10) y=2; }",
-			expected: []Symbol{
-				{LEFT_BRACKET, "{"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{INTEGER, "7"},
-				{SEMICOLON, ";"},
-				{IF_SYM, "if"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{LESS, "<"},
-				{INTEGER, "5"},
-				{RIGHT_PARN, ")"},
-				{VARIABLE, "x"},
-				{EQUAL, "="},
-				{INTEGER, "1"},
-				{SEMICOLON, ";"},
-				{IF_SYM, "if"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{LESS, "<"},
-				{INTEGER, "10"},
-				{RIGHT_PARN, ")"},
-				{VARIABLE, "y"},
-				{EQUAL, "="},
-				{INTEGER, "2"},
-				{SEMICOLON, ";"},
-				{RIGHT_BRACKET, "}"},
-				{END, ""},
-			},
-		},
-		{
-			input: "{ if (i=1) j=2; }",
-			expected: []Symbol{
-				{LEFT_BRACKET, "{"},
-				{IF_SYM, "if"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{INTEGER, "1"},
-				{RIGHT_PARN, ")"},
-				{VARIABLE, "j"},
-				{EQUAL, "="},
-				{INTEGER, "2"},
-				{SEMICOLON, ";"},
-				{RIGHT_BRACKET, "}"},
-				{END, ""},
-			},
-		},
-	}
-
-	testFunc := func(tc TestCase) func(*testing.T) {
-		return func(t *testing.T) {
-			res, err := lex(tc.input)
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
-			if !slices.Equal(res, tc.expected) {
-				t.Errorf("\nExpected:\t%v\nGot:\t\t%v", tc.expected, res)
-			}
-		}
-	}
-
-	for i, tc := range testCases {
-		t.Run(fmt.Sprintf("Example %d", i+1), testFunc(tc))
-	}
-}
-
 func TestNodeString(t *testing.T) {
 	type TestCase struct {
 		node     *Node
@@ -298,20 +50,19 @@ func TestNodeString(t *testing.T) {
 }
 
 type ParserTestCase struct {
-	input    []Symbol
+	input    string
 	expected *Node
 }
 
 func ParserTestFunc(logFilePrefix string, tc ParserTestCase, parser Parser) func(*testing.T) {
 	return func(t *testing.T) {
 		state := State{Data: tc.input, Offset: 0}
+
 		root, state, err := parser(state)
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
-		if sym := peek(state); sym.Type != END {
-			t.Errorf("Expected END, got %s", sym)
-		}
+
 		if !reflect.DeepEqual(root, tc.expected) {
 			t.Errorf("\nExpected:\t%v\nGot:\t\t%v", tc.expected, root)
 
@@ -324,126 +75,10 @@ func ParserTestFunc(logFilePrefix string, tc ParserTestCase, parser Parser) func
 	}
 }
 
-func TestSum(t *testing.T) {
-	testCases := []ParserTestCase{
-		{
-			input: []Symbol{
-				{VARIABLE, "b"},
-				{END, ""},
-			},
-			expected: NewNodeV(VAR_NODE, 1),
-		},
-		{
-			input: []Symbol{
-				{VARIABLE, "b"},
-				{PLUS, "+"},
-				{INTEGER, "2"},
-				{END, ""},
-			},
-			expected: NewNode2(ADD,
-				NewNodeV(VAR_NODE, 1),
-				NewNodeV(CONST, 2),
-			),
-		},
-		{
-			input: []Symbol{
-				{VARIABLE, "b"},
-				{MINUS, "-"},
-				{INTEGER, "2"},
-				{PLUS, "+"},
-				{INTEGER, "3"},
-				{END, ""},
-			},
-			expected: NewNode2(ADD,
-				NewNode2(SUB,
-					NewNodeV(VAR_NODE, 1),
-					NewNodeV(CONST, 2),
-				),
-				NewNodeV(CONST, 3),
-			),
-		},
-		{
-			input: []Symbol{
-				{VARIABLE, "b"},
-				{MINUS, "-"},
-				{INTEGER, "2"},
-				{PLUS, "+"},
-				{INTEGER, "3"},
-				{MINUS, "-"},
-				{INTEGER, "2"},
-				{END, ""},
-			},
-			expected: NewNode2(SUB,
-				NewNode2(ADD,
-					NewNode2(SUB,
-						NewNodeV(VAR_NODE, 1),
-						NewNodeV(CONST, 2),
-					),
-					NewNodeV(CONST, 3),
-				),
-				NewNodeV(CONST, 2),
-			),
-		},
-		{
-			input: []Symbol{
-				{LEFT_PARN, "("},
-				{LEFT_PARN, "("},
-				{VARIABLE, "b"},
-				{RIGHT_PARN, ")"},
-				{RIGHT_PARN, ")"},
-				{END, ""},
-			},
-			expected: NewNodeV(VAR_NODE, 1),
-		},
-	}
-
-	for i, tc := range testCases {
-		t.Run(fmt.Sprintf("Example %d", i+1), ParserTestFunc(fmt.Sprintf("sum_example_%d", i+1), tc, sum))
-	}
-}
-
 func TestParser(t *testing.T) {
 	testCases := []ParserTestCase{
 		{
-			input: []Symbol{
-				{LEFT_BRACKET, "{"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{INTEGER, "125"},
-				{SEMICOLON, ";"},
-				{VARIABLE, "j"},
-				{EQUAL, "="},
-				{INTEGER, "100"},
-				{SEMICOLON, ";"},
-				{WHILE_SYM, "while"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{MINUS, "-"},
-				{VARIABLE, "j"},
-				{RIGHT_PARN, ")"},
-				{IF_SYM, "if"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{LESS, "<"},
-				{VARIABLE, "j"},
-				{RIGHT_PARN, ")"},
-				{VARIABLE, "j"},
-				{EQUAL, "="},
-				{VARIABLE, "j"},
-				{MINUS, "-"},
-				{VARIABLE, "i"},
-				{SEMICOLON, ";"},
-				{ELSE_SYM, "else"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{VARIABLE, "i"},
-				{MINUS, "-"},
-				{VARIABLE, "j"},
-				{SEMICOLON, ";"},
-				{RIGHT_BRACKET, "}"},
-				{END, ""},
-			},
-			// "{ i=125; j=100; while (i-j) if (i<j) j=j-i; else i=i-j; }",
+			input: "{ i=125; j=100; while (i-j) if (i<j) j=j-i; else i=i-j; }",
 			expected: NewNode1(PROG,
 				NewNode2(SEQUENCE,
 					NewNode2(SEQUENCE,
@@ -475,30 +110,7 @@ func TestParser(t *testing.T) {
 			),
 		},
 		{
-			input: []Symbol{
-				{LEFT_BRACKET, "{"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{INTEGER, "1"},
-				{SEMICOLON, ";"},
-				{DO_SYM, "do"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{VARIABLE, "i"},
-				{PLUS, "+"},
-				{INTEGER, "10"},
-				{SEMICOLON, ";"},
-				{WHILE_SYM, "while"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{LESS, "<"},
-				{INTEGER, "50"},
-				{RIGHT_PARN, ")"},
-				{SEMICOLON, ";"},
-				{RIGHT_BRACKET, "}"},
-				{END, ""},
-			},
-			// "{ i=1; do i=i+10; while (i<50); }",
+			input: "{ i=1; do i=i+10; while (i<50); }",
 			expected: NewNode1(PROG,
 				NewNode2(SEQUENCE,
 					NewNode2(SEQUENCE,
@@ -518,36 +130,7 @@ func TestParser(t *testing.T) {
 			),
 		},
 		{
-			input: []Symbol{
-				{LEFT_BRACKET, "{"},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{INTEGER, "7"},
-				{SEMICOLON, ";"},
-				{IF_SYM, "if"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{LESS, "<"},
-				{INTEGER, "5"},
-				{RIGHT_PARN, ")"},
-				{VARIABLE, "x"},
-				{EQUAL, "="},
-				{INTEGER, "1"},
-				{SEMICOLON, ";"},
-				{IF_SYM, "if"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{LESS, "<"},
-				{INTEGER, "10"},
-				{RIGHT_PARN, ")"},
-				{VARIABLE, "y"},
-				{EQUAL, "="},
-				{INTEGER, "2"},
-				{SEMICOLON, ";"},
-				{RIGHT_BRACKET, "}"},
-				{END, ""},
-			},
-			// "{ i=7; if (i<5) x=1; if (i<10) y=2; }",
+			input: "{ i=7; if (i<5) x=1; if (i<10) y=2; }",
 			expected: NewNode1(PROG,
 				NewNode2(SEQUENCE,
 					NewNode2(SEQUENCE,
@@ -573,29 +156,11 @@ func TestParser(t *testing.T) {
 			),
 		},
 		{
-			input: []Symbol{
-				{SEMICOLON, ";"},
-				{END, ""},
-			},
-			// ";",
+			input:    ";",
 			expected: NewNode1(PROG, NewNode(EMPTY)),
 		},
 		{
-			input: []Symbol{
-				{LEFT_BRACKET, "{"},
-				{IF_SYM, "if"},
-				{LEFT_PARN, "("},
-				{VARIABLE, "i"},
-				{EQUAL, "="},
-				{INTEGER, "1"},
-				{RIGHT_PARN, ")"},
-				{VARIABLE, "j"},
-				{EQUAL, "="},
-				{INTEGER, "2"},
-				{SEMICOLON, ";"},
-				{RIGHT_BRACKET, "}"},
-				{END, ""},
-			},
+			input: "{ if (i=1) j=2; }",
 			expected: NewNode1(PROG,
 				NewNode2(SEQUENCE,
 					NewNode(EMPTY),
